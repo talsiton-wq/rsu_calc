@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import type { Grant, SaleSimulationInput } from '../types'
 import { calculateTaxSummary, TAX_BRACKETS, YISUPH_THRESHOLD, CAPITAL_GAIN_RATE } from '../utils/taxCalculator'
 import { getVestingSummary } from '../utils/vestingCalculator'
+import { fetchStockPrice } from '../utils/stockPrice'
 
 interface Props {
   grants: Grant[]
@@ -24,6 +25,12 @@ export default function SaleSimulation({ grants }: Props) {
   const [currentPrice, setCurrentPrice] = useState('')
   const [saleInputs, setSaleInputs] = useState<Record<string, string>>({})
 
+  // Ticker fetch state
+  const [ticker, setTicker] = useState('')
+  const [fetchState, setFetchState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [fetchError, setFetchError] = useState('')
+  const [fetchedTicker, setFetchedTicker] = useState('')
+
   const parsedIncome = parseFloat(annualIncome) || 0
   const parsedPrice = parseFloat(currentPrice) || 0
 
@@ -42,6 +49,21 @@ export default function SaleSimulation({ grants }: Props) {
 
   // Current marginal bracket for display
   const currentBracket = TAX_BRACKETS.find(b => parsedIncome < b.max)
+
+  async function handleFetchPrice() {
+    if (!ticker.trim()) return
+    setFetchState('loading')
+    setFetchError('')
+    try {
+      const price = await fetchStockPrice(ticker)
+      setCurrentPrice(String(price))
+      setFetchedTicker(ticker.trim().toUpperCase())
+      setFetchState('success')
+    } catch (err: any) {
+      setFetchError(err.message ?? 'שגיאה לא ידועה')
+      setFetchState('error')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -63,17 +85,52 @@ export default function SaleSimulation({ grants }: Props) {
             </p>
           )}
         </div>
+
+        {/* Stock price + ticker fetch */}
         <div>
-          <label className="label">מחיר מניה נוכחי (₪)</label>
+          <label className="label">מחיר מניה נוכחי (₪ / $)</label>
+
+          {/* Ticker row */}
+          <div className="flex gap-2 mb-2">
+            <input
+              type="text"
+              className="input"
+              placeholder="טיקר: AAPL, MSFT, GOOG..."
+              value={ticker}
+              onChange={e => { setTicker(e.target.value); setFetchState('idle') }}
+              onKeyDown={e => e.key === 'Enter' && handleFetchPrice()}
+            />
+            <button
+              type="button"
+              className="btn-primary whitespace-nowrap text-sm"
+              onClick={handleFetchPrice}
+              disabled={fetchState === 'loading' || !ticker.trim()}
+            >
+              {fetchState === 'loading' ? '⏳' : '🔍 שלוף'}
+            </button>
+          </div>
+
+          {/* Manual price */}
           <input
             type="number"
             className="input"
-            placeholder="150"
+            placeholder="או הכנס ידנית: 150"
             min="0"
             step="0.01"
             value={currentPrice}
-            onChange={e => setCurrentPrice(e.target.value)}
+            onChange={e => { setCurrentPrice(e.target.value); setFetchState('idle') }}
           />
+
+          {/* Fetch status */}
+          {fetchState === 'success' && (
+            <p className="text-xs text-green-600 mt-1">
+              ✅ מחיר {fetchedTicker} עודכן: <strong>${parseFloat(currentPrice).toFixed(2)}</strong>
+              <span className="text-gray-400 mr-1">(Yahoo Finance)</span>
+            </p>
+          )}
+          {fetchState === 'error' && (
+            <p className="text-xs text-red-500 mt-1">❌ {fetchError}</p>
+          )}
         </div>
       </div>
 
@@ -127,7 +184,6 @@ export default function SaleSimulation({ grants }: Props) {
           const twoYearsDate = new Date(grantDate)
           twoYearsDate.setFullYear(twoYearsDate.getFullYear() + 2)
           const isTwoYears = today >= twoYearsDate
-          const sharesToSell = parseInt(saleInputs[grant.id] || '0') || 0
           const maxSellable = vestSummary.vestedShares
           const bd = summary?.breakdowns.find(b => b.grantId === grant.id)
 
