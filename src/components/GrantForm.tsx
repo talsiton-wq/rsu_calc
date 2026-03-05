@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Grant, VestingType } from '../types'
 import { VESTING_TYPE_LABELS } from '../utils/vestingCalculator'
@@ -17,9 +17,56 @@ const defaultForm = {
   vestingType: 'quarterly' as VestingType,
 }
 
+function makeEqualPercentages(years: number): number[] {
+  const base = parseFloat((100 / years).toFixed(2))
+  const arr = Array(years).fill(base)
+  // Fix floating point: adjust last to ensure sum = 100
+  const sum = parseFloat((base * years).toFixed(2))
+  arr[years - 1] = parseFloat((arr[years - 1] + (100 - sum)).toFixed(2))
+  return arr
+}
+
 export default function GrantForm({ onAdd }: Props) {
   const [form, setForm] = useState(defaultForm)
   const [error, setError] = useState('')
+  const [yearlyPct, setYearlyPct] = useState<number[]>([])
+
+  const years = Math.max(1, Math.floor(parseInt(form.durationMonths) / 12) || 1)
+
+  // Rebuild yearlyPct when years or vestingType changes
+  useEffect(() => {
+    if (form.vestingType === 'asymmetric') {
+      setYearlyPct(prev => {
+        if (prev.length === years) return prev
+        if (prev.length < years) {
+          const added = years - prev.length
+          const extra = makeEqualPercentages(added)
+          return [...prev, ...extra]
+        }
+        return prev.slice(0, years)
+      })
+    }
+  }, [years, form.vestingType])
+
+  function handleVestingTypeChange(vt: VestingType) {
+    setForm(f => ({ ...f, vestingType: vt }))
+    if (vt === 'asymmetric') {
+      setYearlyPct(makeEqualPercentages(years))
+    }
+  }
+
+  function setPct(index: number, value: string) {
+    const num = parseFloat(value)
+    if (isNaN(num)) return
+    setYearlyPct(prev => {
+      const next = [...prev]
+      next[index] = num
+      return next
+    })
+  }
+
+  const pctSum = yearlyPct.reduce((a, b) => a + b, 0)
+  const pctSumRounded = parseFloat(pctSum.toFixed(2))
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -34,6 +81,11 @@ export default function GrantForm({ onAdd }: Props) {
     if (isNaN(totalShares) || totalShares <= 0) return setError('מספר מניות חייב להיות מספר חיובי')
     if (isNaN(durationMonths) || durationMonths <= 0) return setError('משך הענקה חייב להיות מספר חיובי')
 
+    if (form.vestingType === 'asymmetric') {
+      if (Math.abs(pctSum - 100) > 0.1)
+        return setError(`אחוזי ההבשלה חייבים לסכם ל-100% (כרגע: ${pctSumRounded}%)`)
+    }
+
     onAdd({
       id: uuidv4(),
       name: form.name.trim(),
@@ -43,9 +95,11 @@ export default function GrantForm({ onAdd }: Props) {
       totalShares,
       durationMonths,
       vestingType: form.vestingType,
+      yearlyPercentages: form.vestingType === 'asymmetric' ? [...yearlyPct] : undefined,
     })
 
     setForm(defaultForm)
+    setYearlyPct([])
   }
 
   return (
@@ -127,7 +181,7 @@ export default function GrantForm({ onAdd }: Props) {
           <select
             className="input"
             value={form.vestingType}
-            onChange={e => setForm(f => ({ ...f, vestingType: e.target.value as VestingType }))}
+            onChange={e => handleVestingTypeChange(e.target.value as VestingType)}
           >
             {Object.entries(VESTING_TYPE_LABELS).map(([val, label]) => (
               <option key={val} value={val}>{label}</option>
@@ -135,6 +189,50 @@ export default function GrantForm({ onAdd }: Props) {
           </select>
         </div>
       </div>
+
+      {/* Asymmetric vesting: per-year percentages */}
+      {form.vestingType === 'asymmetric' && yearlyPct.length > 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-700">אחוז הבשלה לכל שנה</p>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+              Math.abs(pctSumRounded - 100) < 0.1
+                ? 'bg-green-100 text-green-700'
+                : 'bg-red-100 text-red-700'
+            }`}>
+              סה"כ: {pctSumRounded}%
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {yearlyPct.map((pct, i) => (
+              <div key={i}>
+                <label className="label text-xs">שנה {i + 1}</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    className="input pl-8"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={pct}
+                    onChange={e => setPct(i, e.target.value)}
+                  />
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            className="text-xs text-blue-600 hover:underline"
+            onClick={() => setYearlyPct(makeEqualPercentages(years))}
+          >
+            פזר שווה בשווה
+          </button>
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
