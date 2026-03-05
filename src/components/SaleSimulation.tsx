@@ -26,8 +26,11 @@ export default function SaleSimulation({ grants }: Props) {
   const [exchangeRate, setExchangeRate] = useState('3.7')
   const [saleInputs, setSaleInputs] = useState<Record<string, string>>({})
 
-  // Ticker fetch state
-  const [ticker, setTicker] = useState('')
+  // Unique tickers from grants (non-empty)
+  const uniqueTickers = [...new Set(grants.map(g => g.ticker).filter(Boolean))]
+
+  // Ticker fetch state — default to first unique ticker
+  const [ticker, setTicker] = useState(() => uniqueTickers[0] ?? '')
   const [fetchState, setFetchState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [fetchError, setFetchError] = useState('')
   const [fetchedTicker, setFetchedTicker] = useState('')
@@ -144,14 +147,29 @@ export default function SaleSimulation({ grants }: Props) {
         <div>
           <label className="label">מחיר מניה נוכחי ($)</label>
 
-          {/* Ticker row */}
-          <div className="flex gap-2 mb-2">
+          {/* Ticker chips from grants + manual input */}
+          <div className="flex gap-2 mb-2 flex-wrap">
+            {uniqueTickers.map(t => (
+              <button
+                key={t}
+                type="button"
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                  ticker === t
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
+                }`}
+                onClick={() => { setTicker(t); setFetchState('idle') }}
+              >
+                {t}
+              </button>
+            ))}
+            {/* Manual input if ticker not in grants */}
             <input
               type="text"
-              className="input"
-              placeholder="טיקר: AAPL, MSFT, GOOG..."
-              value={ticker}
-              onChange={e => { setTicker(e.target.value); setFetchState('idle') }}
+              className="input flex-1 min-w-[100px]"
+              placeholder="טיקר אחר..."
+              value={uniqueTickers.includes(ticker) ? '' : ticker}
+              onChange={e => { setTicker(e.target.value.toUpperCase()); setFetchState('idle') }}
               onKeyDown={e => e.key === 'Enter' && handleFetchPrice()}
             />
             <button
