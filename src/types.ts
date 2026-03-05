@@ -3,6 +3,7 @@ export type VestingType = 'quarterly' | 'semiannual' | 'annual'
 export interface Grant {
   id: string
   name: string
+  ticker: string
   grantDate: string        // ISO date string
   grantPrice: number       // Price per share at grant (₪)
   totalShares: number

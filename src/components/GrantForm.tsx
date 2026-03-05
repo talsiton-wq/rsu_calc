@@ -9,6 +9,7 @@ interface Props {
 
 const defaultForm = {
   name: '',
+  ticker: '',
   grantDate: new Date().toISOString().split('T')[0],
   grantPrice: '',
   totalShares: '',
@@ -36,6 +37,7 @@ export default function GrantForm({ onAdd }: Props) {
     onAdd({
       id: uuidv4(),
       name: form.name.trim(),
+      ticker: form.ticker.trim().toUpperCase(),
       grantDate: form.grantDate,
       grantPrice,
       totalShares,
@@ -60,6 +62,16 @@ export default function GrantForm({ onAdd }: Props) {
         </div>
 
         <div>
+          <label className="label">סימול מניה (Ticker)</label>
+          <input
+            className="input"
+            placeholder="לדוגמה: AAPL"
+            value={form.ticker}
+            onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))}
+          />
+        </div>
+
+        <div>
           <label className="label">תאריך הענקה</label>
           <input
             type="date"
@@ -70,7 +82,7 @@ export default function GrantForm({ onAdd }: Props) {
         </div>
 
         <div>
-          <label className="label">מחיר הענקה למניה (₪)</label>
+          <label className="label">מחיר הענקה למניה ($)</label>
           <input
             type="number"
             className="input"

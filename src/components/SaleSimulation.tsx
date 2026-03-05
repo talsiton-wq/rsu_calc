@@ -23,6 +23,7 @@ function fmtPct(n: number) {
 export default function SaleSimulation({ grants }: Props) {
   const [annualIncome, setAnnualIncome] = useState('')
   const [currentPrice, setCurrentPrice] = useState('')
+  const [exchangeRate, setExchangeRate] = useState('3.7')
   const [saleInputs, setSaleInputs] = useState<Record<string, string>>({})
 
   // Ticker fetch state
@@ -33,19 +34,24 @@ export default function SaleSimulation({ grants }: Props) {
 
   const parsedIncome = parseFloat(annualIncome) || 0
   const parsedPrice = parseFloat(currentPrice) || 0
+  const parsedRate = parseFloat(exchangeRate) || 3.7
+  const parsedPriceILS = parsedPrice * parsedRate
 
   const inputs: SaleSimulationInput[] = grants.map(g => ({
     grantId: g.id,
     sharesToSell: parseInt(saleInputs[g.id] || '0') || 0,
   }))
 
+  // Convert grant prices from $ to ₪ for tax calculation
+  const grantsILS = grants.map(g => ({ ...g, grantPrice: g.grantPrice * parsedRate }))
+
   const hasAnySale = inputs.some(i => i.sharesToSell > 0)
   const isValid = parsedIncome >= 0 && parsedPrice > 0 && hasAnySale
 
   const summary = useMemo(() => {
     if (!isValid) return null
-    return calculateTaxSummary(grants, inputs, parsedPrice, parsedIncome)
-  }, [grants, inputs, parsedPrice, parsedIncome, isValid])
+    return calculateTaxSummary(grantsILS, inputs, parsedPriceILS, parsedIncome)
+  }, [grantsILS, inputs, parsedPriceILS, parsedIncome, isValid])
 
   // Current marginal bracket for display
   const currentBracket = TAX_BRACKETS.find(b => parsedIncome < b.max)
@@ -70,6 +76,24 @@ export default function SaleSimulation({ grants }: Props) {
       {/* Global Inputs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
+          <label className="label">שער דולר (₪/$)</label>
+          <input
+            type="number"
+            className="input"
+            placeholder="3.7"
+            min="0"
+            step="0.01"
+            value={exchangeRate}
+            onChange={e => setExchangeRate(e.target.value)}
+          />
+          {parsedRate > 0 && parsedPrice > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              ${parsedPrice.toFixed(2)} = ₪{parsedPriceILS.toFixed(2)}
+            </p>
+          )}
+        </div>
+
+        <div>
           <label className="label">הכנסה שנתית ממוצעת (₪)</label>
           <input
             type="number"
@@ -88,7 +112,7 @@ export default function SaleSimulation({ grants }: Props) {
 
         {/* Stock price + ticker fetch */}
         <div>
-          <label className="label">מחיר מניה נוכחי (₪ / $)</label>
+          <label className="label">מחיר מניה נוכחי ($)</label>
 
           {/* Ticker row */}
           <div className="flex gap-2 mb-2">
@@ -194,7 +218,7 @@ export default function SaleSimulation({ grants }: Props) {
                 <div>
                   <h4 className="font-semibold text-gray-800">{grant.name}</h4>
                   <p className="text-xs text-gray-500">
-                    מחיר הענקה: {fmtCurrency(grant.grantPrice)} | הבשילו: {fmt(vestSummary.vestedShares)} מניות
+                    מחיר הענקה: ${grant.grantPrice.toFixed(2)} | הבשילו: {fmt(vestSummary.vestedShares)} מניות
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -209,7 +233,7 @@ export default function SaleSimulation({ grants }: Props) {
               {/* Two-year status explanation */}
               <div className={`text-xs rounded-lg p-2.5 ${isTwoYears ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
                 {isTwoYears ? (
-                  <>✅ עברו שנתיים — חלק עד מחיר ההענקה ({fmtCurrency(grant.grantPrice)}/מניה) ימוסה כהכנסה, הרווח מעל יחוייב ב-{fmtPct(CAPITAL_GAIN_RATE)} רווח הון</>
+                  <>✅ עברו שנתיים — חלק עד מחיר ההענקה (${grant.grantPrice.toFixed(2)}/מניה) ימוסה כהכנסה, הרווח מעל יחוייב ב-{fmtPct(CAPITAL_GAIN_RATE)} רווח הון</>
                 ) : (
                   <>⚠️ לא עברו שנתיים — כל התמורה תמוסה כהכנסה רגילה לפי מדרגות המס</>
                 )}
@@ -257,7 +281,7 @@ export default function SaleSimulation({ grants }: Props) {
 
                     {bd.isTwoYearsPassed ? (
                       <>
-                        <span className="text-gray-600">הכנסה רגילה ({bd.sharesToSell} × {fmtCurrency(grant.grantPrice)}):</span>
+                        <span className="text-gray-600">הכנסה רגילה ({bd.sharesToSell} × ${grant.grantPrice.toFixed(2)}):</span>
                         <span className="text-left">{fmtCurrency(bd.ordinaryIncome)}</span>
 
                         <span className="text-gray-600">מס הכנסה על הכנסה רגילה:</span>
