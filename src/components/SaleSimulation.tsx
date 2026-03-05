@@ -147,7 +147,7 @@ export default function SaleSimulation({ grants }: Props) {
         <div>
           <label className="label">מחיר מניה נוכחי ($)</label>
 
-          {/* Ticker chips from grants + manual input */}
+          {/* Ticker chips from grants */}
           <div className="flex gap-2 mb-2 flex-wrap">
             {uniqueTickers.map(t => (
               <button
@@ -163,15 +163,6 @@ export default function SaleSimulation({ grants }: Props) {
                 {t}
               </button>
             ))}
-            {/* Manual input if ticker not in grants */}
-            <input
-              type="text"
-              className="input flex-1 min-w-[100px]"
-              placeholder="טיקר אחר..."
-              value={uniqueTickers.includes(ticker) ? '' : ticker}
-              onChange={e => { setTicker(e.target.value.toUpperCase()); setFetchState('idle') }}
-              onKeyDown={e => e.key === 'Enter' && handleFetchPrice()}
-            />
             <button
               type="button"
               className="btn-primary whitespace-nowrap text-sm"

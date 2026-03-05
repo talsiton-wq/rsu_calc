@@ -73,23 +73,42 @@ export function calculateVestingSchedule(grant: Grant): VestingEvent[] {
   if (grant.vestingType === 'asymmetric') {
     const years = Math.floor(grant.durationMonths / 12)
     const percentages = grant.yearlyPercentages ?? Array(years).fill(100 / years)
+    const yearlyTypes = grant.yearlyVestingTypes ?? Array(years).fill('annual')
     const events: VestingEvent[] = []
     let cumulativeVested = 0
 
     for (let y = 0; y < years; y++) {
       const pct = percentages[y] ?? 0
-      const shares = Math.round((pct / 100) * grant.totalShares)
-      cumulativeVested += shares
-      const eventDate = addMonths(grant.grantDate, (y + 1) * 12)
+      const yearShares = Math.round((pct / 100) * grant.totalShares)
+      const yearStartDate = addMonths(grant.grantDate, y * 12)
+      const yvt: VestingType = yearlyTypes[y] ?? 'annual'
+      const periodMonths = VESTING_PERIOD_MONTHS[yvt] ?? 12
+      const numPeriods = Math.floor(12 / periodMonths)
+      const basePerPeriod = Math.floor(yearShares / numPeriods)
+      const rem = yearShares - basePerPeriod * numPeriods
 
-      events.push({
-        date: eventDate,
-        periodLabel: `שנה ${y + 1} (${pct.toFixed(0)}%)`,
-        sharesVested: shares,
-        cumulativeVested,
-        cumulativeUnvested: grant.totalShares - cumulativeVested,
-        isPast: new Date(eventDate) <= today,
-      })
+      for (let p = 1; p <= numPeriods; p++) {
+        const sharesThisPeriod = p === numPeriods ? basePerPeriod + rem : basePerPeriod
+        cumulativeVested += sharesThisPeriod
+        const eventDate = addMonths(yearStartDate, p * periodMonths)
+
+        let periodLabel: string
+        if (numPeriods === 1) {
+          periodLabel = `שנה ${y + 1} (${pct.toFixed(0)}%)`
+        } else {
+          periodLabel = getPeriodLabel(eventDate, yvt, p)
+          periodLabel += ` — שנה ${y + 1}`
+        }
+
+        events.push({
+          date: eventDate,
+          periodLabel,
+          sharesVested: sharesThisPeriod,
+          cumulativeVested,
+          cumulativeUnvested: grant.totalShares - cumulativeVested,
+          isPast: new Date(eventDate) <= today,
+        })
+      }
     }
 
     // Fix rounding: adjust last event to match totalShares exactly
