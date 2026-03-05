@@ -1,5 +1,10 @@
 import type { Grant, VestingEvent, VestingType } from '../types'
 
+export function grantLabel(grant: Grant): string {
+  const d = new Date(grant.grantDate).toLocaleDateString('he-IL', { year: 'numeric', month: 'short' })
+  return grant.ticker ? `${grant.ticker} — ${d}` : d
+}
+
 export const VESTING_TYPE_LABELS: Record<VestingType, string> = {
   quarterly:    'רבעוני (כל 3 חודשים)',
   trimesterly:  'שלישוני (כל 4 חודשים)',
@@ -129,6 +134,64 @@ export function calculateVestingSchedule(grant: Grant): VestingEvent[] {
   }
 
   return events
+}
+
+export interface MergedVestingEvent extends VestingEvent {
+  grantId: string
+  grantLabel: string
+}
+
+/**
+ * Merge vesting schedules from multiple grants into a single chronological timeline.
+ * Cumulative columns reflect totals across ALL grants.
+ */
+export function mergeVestingSchedules(grants: Grant[]): MergedVestingEvent[] {
+  const totalShares = grants.reduce((s, g) => s + g.totalShares, 0)
+  const raw: MergedVestingEvent[] = []
+
+  for (const grant of grants) {
+    const events = calculateVestingSchedule(grant)
+    const label = grantLabel(grant)
+    for (const e of events) {
+      raw.push({ ...e, grantId: grant.id, grantLabel: label })
+    }
+  }
+
+  raw.sort((a, b) => a.date.localeCompare(b.date))
+
+  let cum = 0
+  for (const e of raw) {
+    cum += e.sharesVested
+    e.cumulativeVested = cum
+    e.cumulativeUnvested = totalShares - cum
+  }
+
+  return raw
+}
+
+/**
+ * Combined summary across all grants
+ */
+export function getCombinedSummary(grants: Grant[]) {
+  const totalShares = grants.reduce((s, g) => s + g.totalShares, 0)
+  let vestedShares = 0
+  let nextVesting: VestingEvent | undefined
+
+  for (const grant of grants) {
+    const s = getVestingSummary(grant)
+    vestedShares += s.vestedShares
+    if (s.nextVesting && (!nextVesting || s.nextVesting.date < nextVesting.date)) {
+      nextVesting = s.nextVesting
+    }
+  }
+
+  return {
+    vestedShares,
+    unvestedShares: totalShares - vestedShares,
+    totalShares,
+    vestedPercent: totalShares > 0 ? (vestedShares / totalShares) * 100 : 0,
+    nextVesting,
+  }
 }
 
 /**

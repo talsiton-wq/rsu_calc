@@ -11,10 +11,10 @@ import {
   ReferenceLine,
 } from 'recharts'
 import type { Grant } from '../types'
-import { calculateVestingSchedule, formatDate, getVestingSummary } from '../utils/vestingCalculator'
+import { mergeVestingSchedules, getCombinedSummary, formatDate } from '../utils/vestingCalculator'
 
 interface Props {
-  grant: Grant
+  grants: Grant[]
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -34,24 +34,43 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null
 }
 
-export default function VestingChart({ grant }: Props) {
-  const events = calculateVestingSchedule(grant)
-  const summary = getVestingSummary(grant)
+export default function VestingChart({ grants }: Props) {
+  const merged = mergeVestingSchedules(grants)
+  const summary = getCombinedSummary(grants)
 
-  const chartData = events.map(e => ({
-    label: e.periodLabel,
-    date: e.date,
-    'מניות שהבשילו (מצטבר)': e.cumulativeVested,
-    'מניות שלא הבשילו': e.cumulativeUnvested,
-    'הבשלה בתקופה': e.sharesVested,
-    isPast: e.isPast,
+  // Aggregate same-date events for chart bars
+  const dateMap = new Map<string, { label: string, sharesVested: number, cumulativeVested: number, cumulativeUnvested: number, isPast: boolean }>()
+  for (const e of merged) {
+    if (dateMap.has(e.date)) {
+      const existing = dateMap.get(e.date)!
+      existing.sharesVested += e.sharesVested
+      existing.cumulativeVested = e.cumulativeVested
+      existing.cumulativeUnvested = e.cumulativeUnvested
+    } else {
+      dateMap.set(e.date, {
+        label: e.periodLabel,
+        sharesVested: e.sharesVested,
+        cumulativeVested: e.cumulativeVested,
+        cumulativeUnvested: e.cumulativeUnvested,
+        isPast: e.isPast,
+      })
+    }
+  }
+
+  const chartData = Array.from(dateMap.values()).map(d => ({
+    label: d.label,
+    'מניות שהבשילו (מצטבר)': d.cumulativeVested,
+    'מניות שלא הבשילו': d.cumulativeUnvested,
+    'הבשלה בתקופה': d.sharesVested,
+    isPast: d.isPast,
   }))
 
   const todayLabel = (() => {
-    const todayIdx = events.findIndex(e => !e.isPast)
-    if (todayIdx > 0) return events[todayIdx - 1].periodLabel
-    if (todayIdx === 0) return null
-    return events[events.length - 1]?.periodLabel
+    const entries = Array.from(dateMap.entries())
+    const idx = entries.findIndex(([, d]) => !d.isPast)
+    if (idx > 0) return entries[idx - 1][1].label
+    if (idx === 0) return null
+    return entries[entries.length - 1]?.[1].label
   })()
 
   return (
@@ -70,10 +89,8 @@ export default function VestingChart({ grant }: Props) {
         </div>
         <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
           <p className="text-xs text-blue-600 font-medium mb-1">סך הכל מניות</p>
-          <p className="text-2xl font-bold text-blue-700">{grant.totalShares.toLocaleString('he-IL')}</p>
-          <p className="text-xs text-blue-500">
-            {summary.completedPeriods}/{summary.totalPeriods} תקופות
-          </p>
+          <p className="text-2xl font-bold text-blue-700">{summary.totalShares.toLocaleString('he-IL')}</p>
+          <p className="text-xs text-blue-500">{grants.length} הענקות</p>
         </div>
         <div className="bg-purple-50 rounded-xl p-3 border border-purple-100">
           <p className="text-xs text-purple-600 font-medium mb-1">הבשלה הבאה</p>

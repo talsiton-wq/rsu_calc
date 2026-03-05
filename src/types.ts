@@ -2,7 +2,6 @@ export type VestingType = 'quarterly' | 'trimesterly' | 'semiannual' | 'annual' 
 
 export interface Grant {
   id: string
-  name: string
   ticker: string
   grantDate: string        // ISO date string
   grantPrice: number       // Price per share at grant ($)
@@ -28,7 +27,7 @@ export interface SaleSimulationInput {
 
 export interface TaxBreakdown {
   grantId: string
-  grantName: string
+  grantLabel: string
   sharesToSell: number
   currentPrice: number
   saleProceeds: number

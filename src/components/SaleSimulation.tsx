@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import type { Grant, SaleSimulationInput } from '../types'
 import { calculateTaxSummary, TAX_BRACKETS, YISUPH_THRESHOLD, CAPITAL_GAIN_RATE } from '../utils/taxCalculator'
-import { getVestingSummary } from '../utils/vestingCalculator'
+import { getVestingSummary, grantLabel } from '../utils/vestingCalculator'
 import { fetchStockPrice } from '../utils/stockPrice'
 
 interface Props {
@@ -216,7 +216,7 @@ export default function SaleSimulation({ grants }: Props) {
               {/* Grant Header */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <h4 className="font-semibold text-gray-800">{grant.name}</h4>
+                  <h4 className="font-semibold text-gray-800">{grantLabel(grant)}</h4>
                   <p className="text-xs text-gray-500">
                     מחיר הענקה: ${grant.grantPrice.toFixed(2)} | הבשילו: {fmt(vestSummary.vestedShares)} מניות
                   </p>
