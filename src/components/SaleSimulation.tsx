@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import type { Grant, SaleSimulationInput } from '../types'
 import { calculateTaxSummary, TAX_BRACKETS, YISUPH_THRESHOLD, CAPITAL_GAIN_RATE } from '../utils/taxCalculator'
 import { getVestingSummary, grantLabel } from '../utils/vestingCalculator'
-import { fetchStockPrice } from '../utils/stockPrice'
+import { fetchStockPrice, fetchUsdIlsRate } from '../utils/stockPrice'
 
 interface Props {
   grants: Grant[]
@@ -65,7 +65,7 @@ export default function SaleSimulation({ grants }: Props) {
   async function handleFetchRate() {
     setRateFetchState('loading')
     try {
-      const rate = await fetchStockPrice('USDILS=X')
+      const rate = await fetchUsdIlsRate()
       setExchangeRate(rate.toFixed(3))
       setRateFetchState('success')
     } catch {

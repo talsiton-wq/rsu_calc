@@ -1,4 +1,23 @@
 /**
+ * Fetch USD/ILS exchange rate from Frankfurter (free, CORS-friendly, ECB data).
+ * Falls back to Yahoo Finance via proxy if Frankfurter fails.
+ */
+export async function fetchUsdIlsRate(): Promise<number> {
+  // Primary: Frankfurter API (European Central Bank data, free, no key)
+  try {
+    const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=ILS')
+    if (res.ok) {
+      const data = await res.json()
+      const rate = data?.rates?.ILS
+      if (typeof rate === 'number' && rate > 0) return rate
+    }
+  } catch { /* fall through */ }
+
+  // Fallback: Yahoo Finance via proxy
+  return fetchStockPrice('USDILS=X')
+}
+
+/**
  * Fetch current stock price from Yahoo Finance via a CORS proxy.
  * Yahoo Finance blocks direct browser requests (CORS), so we route through allorigins.win.
  */
