@@ -1,15 +1,18 @@
 import type { Grant, VestingEvent, VestingType } from '../types'
 
 export const VESTING_TYPE_LABELS: Record<VestingType, string> = {
-  quarterly: 'רבעוני (כל 3 חודשים)',
-  semiannual: 'חצי שנתי (כל 6 חודשים)',
-  annual: 'שנתי (כל 12 חודשים)',
+  quarterly:    'רבעוני (כל 3 חודשים)',
+  trimesterly:  'שלישוני (כל 4 חודשים)',
+  semiannual:   'חצי שנתי (כל 6 חודשים)',
+  annual:       'שנתי (כל 12 חודשים)',
+  asymmetric:   'לא סימטרי (% שונה לכל שנה)',
 }
 
-export const VESTING_PERIOD_MONTHS: Record<VestingType, number> = {
-  quarterly: 3,
-  semiannual: 6,
-  annual: 12,
+export const VESTING_PERIOD_MONTHS: Partial<Record<VestingType, number>> = {
+  quarterly:   3,
+  trimesterly: 4,
+  semiannual:  6,
+  annual:      12,
 }
 
 /**
@@ -44,6 +47,10 @@ function getPeriodLabel(dateStr: string, vestingType: VestingType, periodIndex: 
     const quarter = Math.floor(date.getMonth() / 3) + 1
     return `Q${quarter} ${year}`
   }
+  if (vestingType === 'trimesterly') {
+    const third = Math.floor(date.getMonth() / 4) + 1
+    return `T${third} ${year}`
+  }
   if (vestingType === 'semiannual') {
     const half = date.getMonth() < 6 ? 'H1' : 'H2'
     return `${half} ${year}`
@@ -55,7 +62,47 @@ function getPeriodLabel(dateStr: string, vestingType: VestingType, periodIndex: 
  * Calculate the full vesting schedule for a grant
  */
 export function calculateVestingSchedule(grant: Grant): VestingEvent[] {
-  const periodMonths = VESTING_PERIOD_MONTHS[grant.vestingType]
+  const today = new Date()
+
+  // --- Asymmetric vesting ---
+  if (grant.vestingType === 'asymmetric') {
+    const years = Math.floor(grant.durationMonths / 12)
+    const percentages = grant.yearlyPercentages ?? Array(years).fill(100 / years)
+    const events: VestingEvent[] = []
+    let cumulativeVested = 0
+
+    for (let y = 0; y < years; y++) {
+      const pct = percentages[y] ?? 0
+      const shares = Math.round((pct / 100) * grant.totalShares)
+      cumulativeVested += shares
+      const eventDate = addMonths(grant.grantDate, (y + 1) * 12)
+
+      events.push({
+        date: eventDate,
+        periodLabel: `שנה ${y + 1} (${pct.toFixed(0)}%)`,
+        sharesVested: shares,
+        cumulativeVested,
+        cumulativeUnvested: grant.totalShares - cumulativeVested,
+        isPast: new Date(eventDate) <= today,
+      })
+    }
+
+    // Fix rounding: adjust last event to match totalShares exactly
+    if (events.length > 0) {
+      const diff = grant.totalShares - events[events.length - 1].cumulativeVested
+      if (diff !== 0) {
+        const last = events[events.length - 1]
+        last.sharesVested += diff
+        last.cumulativeVested += diff
+        last.cumulativeUnvested = 0
+      }
+    }
+
+    return events
+  }
+
+  // --- Regular vesting ---
+  const periodMonths = VESTING_PERIOD_MONTHS[grant.vestingType] ?? 3
   const numPeriods = Math.floor(grant.durationMonths / periodMonths)
 
   if (numPeriods === 0) return []
@@ -65,11 +112,9 @@ export function calculateVestingSchedule(grant: Grant): VestingEvent[] {
 
   const events: VestingEvent[] = []
   let cumulativeVested = 0
-  const today = new Date()
 
   for (let i = 1; i <= numPeriods; i++) {
     const eventDate = addMonths(grant.grantDate, i * periodMonths)
-    // Give the last period the remainder shares
     const sharesThisPeriod = i === numPeriods ? baseSharesPerPeriod + remainder : baseSharesPerPeriod
     cumulativeVested += sharesThisPeriod
 

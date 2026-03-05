@@ -1,14 +1,15 @@
-export type VestingType = 'quarterly' | 'semiannual' | 'annual'
+export type VestingType = 'quarterly' | 'trimesterly' | 'semiannual' | 'annual' | 'asymmetric'
 
 export interface Grant {
   id: string
   name: string
   ticker: string
   grantDate: string        // ISO date string
-  grantPrice: number       // Price per share at grant (₪)
+  grantPrice: number       // Price per share at grant ($)
   totalShares: number
   durationMonths: number
   vestingType: VestingType
+  yearlyPercentages?: number[]  // for asymmetric: % per year, must sum to 100
 }
 
 export interface VestingEvent {
