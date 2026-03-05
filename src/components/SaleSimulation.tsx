@@ -26,11 +26,17 @@ export default function SaleSimulation({ grants }: Props) {
   const [exchangeRate, setExchangeRate] = useState('3.7')
   const [saleInputs, setSaleInputs] = useState<Record<string, string>>({})
 
-  // Ticker fetch state
-  const [ticker, setTicker] = useState('')
+  // Unique tickers from grants (non-empty)
+  const uniqueTickers = [...new Set(grants.map(g => g.ticker).filter(Boolean))]
+
+  // Ticker fetch state — default to first unique ticker
+  const [ticker, setTicker] = useState(() => uniqueTickers[0] ?? '')
   const [fetchState, setFetchState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [fetchError, setFetchError] = useState('')
   const [fetchedTicker, setFetchedTicker] = useState('')
+
+  // Exchange rate fetch state
+  const [rateFetchState, setRateFetchState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
 
   const parsedIncome = parseFloat(annualIncome) || 0
   const parsedPrice = parseFloat(currentPrice) || 0
@@ -56,6 +62,17 @@ export default function SaleSimulation({ grants }: Props) {
   // Current marginal bracket for display
   const currentBracket = TAX_BRACKETS.find(b => parsedIncome < b.max)
 
+  async function handleFetchRate() {
+    setRateFetchState('loading')
+    try {
+      const rate = await fetchStockPrice('USDILS=X')
+      setExchangeRate(rate.toFixed(3))
+      setRateFetchState('success')
+    } catch {
+      setRateFetchState('error')
+    }
+  }
+
   async function handleFetchPrice() {
     if (!ticker.trim()) return
     setFetchState('loading')
@@ -77,16 +94,32 @@ export default function SaleSimulation({ grants }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="label">שער דולר (₪/$)</label>
-          <input
-            type="number"
-            className="input"
-            placeholder="3.7"
-            min="0"
-            step="0.01"
-            value={exchangeRate}
-            onChange={e => setExchangeRate(e.target.value)}
-          />
-          {parsedRate > 0 && parsedPrice > 0 && (
+          <div className="flex gap-2">
+            <input
+              type="number"
+              className="input"
+              placeholder="3.7"
+              min="0"
+              step="0.001"
+              value={exchangeRate}
+              onChange={e => { setExchangeRate(e.target.value); setRateFetchState('idle') }}
+            />
+            <button
+              type="button"
+              className="btn-primary whitespace-nowrap text-sm"
+              onClick={handleFetchRate}
+              disabled={rateFetchState === 'loading'}
+            >
+              {rateFetchState === 'loading' ? '⏳' : '🔄 עדכן'}
+            </button>
+          </div>
+          {rateFetchState === 'success' && (
+            <p className="text-xs text-green-600 mt-1">✅ שער עודכן: ₪{parsedRate.toFixed(3)}</p>
+          )}
+          {rateFetchState === 'error' && (
+            <p className="text-xs text-red-500 mt-1">❌ שגיאה בשליפת שער</p>
+          )}
+          {rateFetchState === 'idle' && parsedRate > 0 && parsedPrice > 0 && (
             <p className="text-xs text-gray-500 mt-1">
               ${parsedPrice.toFixed(2)} = ₪{parsedPriceILS.toFixed(2)}
             </p>
@@ -114,16 +147,22 @@ export default function SaleSimulation({ grants }: Props) {
         <div>
           <label className="label">מחיר מניה נוכחי ($)</label>
 
-          {/* Ticker row */}
-          <div className="flex gap-2 mb-2">
-            <input
-              type="text"
-              className="input"
-              placeholder="טיקר: AAPL, MSFT, GOOG..."
-              value={ticker}
-              onChange={e => { setTicker(e.target.value); setFetchState('idle') }}
-              onKeyDown={e => e.key === 'Enter' && handleFetchPrice()}
-            />
+          {/* Ticker chips from grants */}
+          <div className="flex gap-2 mb-2 flex-wrap">
+            {uniqueTickers.map(t => (
+              <button
+                key={t}
+                type="button"
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                  ticker === t
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
+                }`}
+                onClick={() => { setTicker(t); setFetchState('idle') }}
+              >
+                {t}
+              </button>
+            ))}
             <button
               type="button"
               className="btn-primary whitespace-nowrap text-sm"

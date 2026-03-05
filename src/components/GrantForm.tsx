@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Grant, VestingType } from '../types'
-import { VESTING_TYPE_LABELS } from '../utils/vestingCalculator'
+import { VESTING_TYPE_LABELS, VESTING_PERIOD_MONTHS } from '../utils/vestingCalculator'
+
+const YEAR_VESTING_OPTIONS: { value: VestingType; label: string }[] = [
+  { value: 'annual',     label: 'שנתי (פעם בשנה)' },
+  { value: 'semiannual', label: 'חצי שנתי (×2)' },
+  { value: 'trimesterly',label: 'שלישוני (×3)' },
+  { value: 'quarterly',  label: 'רבעוני (×4)' },
+]
 
 interface Props {
   onAdd: (grant: Grant) => void
@@ -29,19 +36,27 @@ export default function GrantForm({ onAdd }: Props) {
   const [form, setForm] = useState(defaultForm)
   const [error, setError] = useState('')
   const [yearlyPct, setYearlyPct] = useState<number[]>([])
+  const [yearlyPctRaw, setYearlyPctRaw] = useState<string[]>([])
+  const [yearlyVType, setYearlyVType] = useState<VestingType[]>([])
 
   const years = Math.max(1, Math.floor(parseInt(form.durationMonths) / 12) || 1)
 
-  // Rebuild yearlyPct when years or vestingType changes
+  // Rebuild yearlyPct and yearlyVType when years or vestingType changes
   useEffect(() => {
     if (form.vestingType === 'asymmetric') {
       setYearlyPct(prev => {
         if (prev.length === years) return prev
-        if (prev.length < years) {
-          const added = years - prev.length
-          const extra = makeEqualPercentages(added)
-          return [...prev, ...extra]
-        }
+        if (prev.length < years) return [...prev, ...makeEqualPercentages(years - prev.length)]
+        return prev.slice(0, years)
+      })
+      setYearlyPctRaw(prev => {
+        if (prev.length === years) return prev
+        if (prev.length < years) return [...prev, ...makeEqualPercentages(years - prev.length).map(String)]
+        return prev.slice(0, years)
+      })
+      setYearlyVType(prev => {
+        if (prev.length === years) return prev
+        if (prev.length < years) return [...prev, ...Array(years - prev.length).fill('annual' as VestingType)]
         return prev.slice(0, years)
       })
     }
@@ -50,18 +65,27 @@ export default function GrantForm({ onAdd }: Props) {
   function handleVestingTypeChange(vt: VestingType) {
     setForm(f => ({ ...f, vestingType: vt }))
     if (vt === 'asymmetric') {
-      setYearlyPct(makeEqualPercentages(years))
+      const pcts = makeEqualPercentages(years)
+      setYearlyPct(pcts)
+      setYearlyPctRaw(pcts.map(String))
+      setYearlyVType(Array(years).fill('annual'))
     }
   }
 
-  function setPct(index: number, value: string) {
-    const num = parseFloat(value)
-    if (isNaN(num)) return
-    setYearlyPct(prev => {
+  function setPct(index: number, raw: string) {
+    setYearlyPctRaw(prev => {
       const next = [...prev]
-      next[index] = num
+      next[index] = raw
       return next
     })
+    const num = parseFloat(raw)
+    if (!isNaN(num)) {
+      setYearlyPct(prev => {
+        const next = [...prev]
+        next[index] = num
+        return next
+      })
+    }
   }
 
   const pctSum = yearlyPct.reduce((a, b) => a + b, 0)
@@ -93,10 +117,12 @@ export default function GrantForm({ onAdd }: Props) {
       durationMonths,
       vestingType: form.vestingType,
       yearlyPercentages: form.vestingType === 'asymmetric' ? [...yearlyPct] : undefined,
+      yearlyVestingTypes: form.vestingType === 'asymmetric' ? [...yearlyVType] : undefined,
     })
 
     setForm(defaultForm)
     setYearlyPct([])
+    setYearlyVType([])
   }
 
   return (
@@ -191,21 +217,36 @@ export default function GrantForm({ onAdd }: Props) {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {yearlyPct.map((pct, i) => (
-              <div key={i}>
-                <label className="label text-xs">שנה {i + 1}</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    className="input pl-8"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={pct}
-                    onChange={e => setPct(i, e.target.value)}
-                  />
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+              <div key={i} className="border border-gray-200 rounded-lg p-3 bg-white space-y-2">
+                <p className="text-xs font-semibold text-gray-600">שנה {i + 1}</p>
+                <div className="flex gap-2 items-center">
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      className="input pl-8"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={yearlyPctRaw[i] ?? pct}
+                      onChange={e => setPct(i, e.target.value)}
+                    />
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                  </div>
+                  <select
+                    className="input flex-1 text-sm"
+                    value={yearlyVType[i] ?? 'annual'}
+                    onChange={e => setYearlyVType(prev => {
+                      const next = [...prev]
+                      next[i] = e.target.value as VestingType
+                      return next
+                    })}
+                  >
+                    {YEAR_VESTING_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             ))}
@@ -214,7 +255,11 @@ export default function GrantForm({ onAdd }: Props) {
           <button
             type="button"
             className="text-xs text-blue-600 hover:underline"
-            onClick={() => setYearlyPct(makeEqualPercentages(years))}
+            onClick={() => {
+              const pcts = makeEqualPercentages(years)
+              setYearlyPct(pcts)
+              setYearlyPctRaw(pcts.map(String))
+            }}
           >
             פזר שווה בשווה
           </button>

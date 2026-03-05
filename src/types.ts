@@ -8,7 +8,8 @@ export interface Grant {
   totalShares: number
   durationMonths: number
   vestingType: VestingType
-  yearlyPercentages?: number[]  // for asymmetric: % per year, must sum to 100
+  yearlyPercentages?: number[]    // for asymmetric: % per year, must sum to 100
+  yearlyVestingTypes?: VestingType[] // for asymmetric: vesting frequency per year (annual/quarterly/etc.)
 }
 
 export interface VestingEvent {
