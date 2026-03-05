@@ -29,6 +29,7 @@ export default function GrantForm({ onAdd }: Props) {
   const [form, setForm] = useState(defaultForm)
   const [error, setError] = useState('')
   const [yearlyPct, setYearlyPct] = useState<number[]>([])
+  const [yearlyPctRaw, setYearlyPctRaw] = useState<string[]>([])
 
   const years = Math.max(1, Math.floor(parseInt(form.durationMonths) / 12) || 1)
 
@@ -38,8 +39,15 @@ export default function GrantForm({ onAdd }: Props) {
       setYearlyPct(prev => {
         if (prev.length === years) return prev
         if (prev.length < years) {
-          const added = years - prev.length
-          const extra = makeEqualPercentages(added)
+          const extra = makeEqualPercentages(years - prev.length)
+          return [...prev, ...extra]
+        }
+        return prev.slice(0, years)
+      })
+      setYearlyPctRaw(prev => {
+        if (prev.length === years) return prev
+        if (prev.length < years) {
+          const extra = makeEqualPercentages(years - prev.length).map(String)
           return [...prev, ...extra]
         }
         return prev.slice(0, years)
@@ -50,18 +58,26 @@ export default function GrantForm({ onAdd }: Props) {
   function handleVestingTypeChange(vt: VestingType) {
     setForm(f => ({ ...f, vestingType: vt }))
     if (vt === 'asymmetric') {
-      setYearlyPct(makeEqualPercentages(years))
+      const pcts = makeEqualPercentages(years)
+      setYearlyPct(pcts)
+      setYearlyPctRaw(pcts.map(String))
     }
   }
 
-  function setPct(index: number, value: string) {
-    const num = parseFloat(value)
-    if (isNaN(num)) return
-    setYearlyPct(prev => {
+  function setPct(index: number, raw: string) {
+    setYearlyPctRaw(prev => {
       const next = [...prev]
-      next[index] = num
+      next[index] = raw
       return next
     })
+    const num = parseFloat(raw)
+    if (!isNaN(num)) {
+      setYearlyPct(prev => {
+        const next = [...prev]
+        next[index] = num
+        return next
+      })
+    }
   }
 
   const pctSum = yearlyPct.reduce((a, b) => a + b, 0)
@@ -202,7 +218,7 @@ export default function GrantForm({ onAdd }: Props) {
                     min="0"
                     max="100"
                     step="0.01"
-                    value={pct}
+                    value={yearlyPctRaw[i] ?? pct}
                     onChange={e => setPct(i, e.target.value)}
                   />
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
@@ -214,7 +230,11 @@ export default function GrantForm({ onAdd }: Props) {
           <button
             type="button"
             className="text-xs text-blue-600 hover:underline"
-            onClick={() => setYearlyPct(makeEqualPercentages(years))}
+            onClick={() => {
+              const pcts = makeEqualPercentages(years)
+              setYearlyPct(pcts)
+              setYearlyPctRaw(pcts.map(String))
+            }}
           >
             פזר שווה בשווה
           </button>

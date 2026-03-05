@@ -32,6 +32,9 @@ export default function SaleSimulation({ grants }: Props) {
   const [fetchError, setFetchError] = useState('')
   const [fetchedTicker, setFetchedTicker] = useState('')
 
+  // Exchange rate fetch state
+  const [rateFetchState, setRateFetchState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+
   const parsedIncome = parseFloat(annualIncome) || 0
   const parsedPrice = parseFloat(currentPrice) || 0
   const parsedRate = parseFloat(exchangeRate) || 3.7
@@ -56,6 +59,17 @@ export default function SaleSimulation({ grants }: Props) {
   // Current marginal bracket for display
   const currentBracket = TAX_BRACKETS.find(b => parsedIncome < b.max)
 
+  async function handleFetchRate() {
+    setRateFetchState('loading')
+    try {
+      const rate = await fetchStockPrice('USDILS=X')
+      setExchangeRate(rate.toFixed(3))
+      setRateFetchState('success')
+    } catch {
+      setRateFetchState('error')
+    }
+  }
+
   async function handleFetchPrice() {
     if (!ticker.trim()) return
     setFetchState('loading')
@@ -77,16 +91,32 @@ export default function SaleSimulation({ grants }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="label">שער דולר (₪/$)</label>
-          <input
-            type="number"
-            className="input"
-            placeholder="3.7"
-            min="0"
-            step="0.01"
-            value={exchangeRate}
-            onChange={e => setExchangeRate(e.target.value)}
-          />
-          {parsedRate > 0 && parsedPrice > 0 && (
+          <div className="flex gap-2">
+            <input
+              type="number"
+              className="input"
+              placeholder="3.7"
+              min="0"
+              step="0.001"
+              value={exchangeRate}
+              onChange={e => { setExchangeRate(e.target.value); setRateFetchState('idle') }}
+            />
+            <button
+              type="button"
+              className="btn-primary whitespace-nowrap text-sm"
+              onClick={handleFetchRate}
+              disabled={rateFetchState === 'loading'}
+            >
+              {rateFetchState === 'loading' ? '⏳' : '🔄 עדכן'}
+            </button>
+          </div>
+          {rateFetchState === 'success' && (
+            <p className="text-xs text-green-600 mt-1">✅ שער עודכן: ₪{parsedRate.toFixed(3)}</p>
+          )}
+          {rateFetchState === 'error' && (
+            <p className="text-xs text-red-500 mt-1">❌ שגיאה בשליפת שער</p>
+          )}
+          {rateFetchState === 'idle' && parsedRate > 0 && parsedPrice > 0 && (
             <p className="text-xs text-gray-500 mt-1">
               ${parsedPrice.toFixed(2)} = ₪{parsedPriceILS.toFixed(2)}
             </p>
