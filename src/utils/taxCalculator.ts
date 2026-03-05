@@ -95,7 +95,7 @@ export function calculateGrantTax(
 
   return {
     grantId: grant.id,
-    grantName: grant.name,
+    grantLabel: grant.ticker ?? grant.grantDate,
     sharesToSell,
     currentPrice,
     saleProceeds,

@@ -1,35 +1,43 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Grant } from './types'
 import GrantForm from './components/GrantForm'
 import VestingChart from './components/VestingChart'
 import VestingTable from './components/VestingTable'
 import SaleSimulation from './components/SaleSimulation'
-import { getVestingSummary, formatDate, VESTING_TYPE_LABELS } from './utils/vestingCalculator'
+import { getVestingSummary, grantLabel, VESTING_TYPE_LABELS } from './utils/vestingCalculator'
+
+const STORAGE_KEY = 'rsu_grants_v1'
 
 type ActiveTab = 'vesting' | 'simulation'
 
+function loadGrants(): Grant[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
 export default function App() {
-  const [grants, setGrants] = useState<Grant[]>([])
-  const [selectedGrantId, setSelectedGrantId] = useState<string | null>(null)
+  const [grants, setGrants] = useState<Grant[]>(loadGrants)
   const [activeTab, setActiveTab] = useState<ActiveTab>('vesting')
-  const [showForm, setShowForm] = useState(true)
+  const [showForm, setShowForm] = useState(false)
   const [expandedGrantId, setExpandedGrantId] = useState<string | null>(null)
+
+  // Persist to localStorage on every change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(grants))
+  }, [grants])
 
   function handleAddGrant(grant: Grant) {
     setGrants(prev => [...prev, grant])
-    setSelectedGrantId(grant.id)
-    setExpandedGrantId(grant.id)
     setShowForm(false)
   }
 
   function handleRemoveGrant(id: string) {
     setGrants(prev => prev.filter(g => g.id !== id))
-    if (selectedGrantId === id) {
-      setSelectedGrantId(null)
-    }
   }
-
-  const selectedGrant = grants.find(g => g.id === selectedGrantId) ?? null
 
   return (
     <div className="min-h-screen" dir="rtl">
@@ -87,22 +95,14 @@ export default function App() {
                 return (
                   <div
                     key={grant.id}
-                    className={`border rounded-xl overflow-hidden transition-all ${
-                      selectedGrantId === grant.id
-                        ? 'border-blue-400 shadow-md'
-                        : 'border-gray-200'
-                    }`}
+                    className="border rounded-xl overflow-hidden border-gray-200"
                   >
                     <button
                       className="w-full text-right px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                      onClick={() => {
-                        setSelectedGrantId(grant.id)
-                        setExpandedGrantId(isExpanded ? null : grant.id)
-                      }}
+                      onClick={() => setExpandedGrantId(isExpanded ? null : grant.id)}
                     >
                       <div className="flex items-center gap-3 flex-wrap">
-                        <span className="font-semibold text-gray-800">{grant.name}</span>
-                        <span className="text-xs text-gray-500">{formatDate(grant.grantDate)}</span>
+                        <span className="font-semibold text-gray-800">{grantLabel(grant)}</span>
                         <span className="tag-blue">{VESTING_TYPE_LABELS[grant.vestingType].split(' ')[0]}</span>
                         {isTwoYears && <span className="tag-green">✓ עברו שנתיים</span>}
                       </div>
@@ -113,7 +113,6 @@ export default function App() {
                             {summary.vestedShares.toLocaleString('he-IL')} / {grant.totalShares.toLocaleString('he-IL')}
                           </p>
                         </div>
-                        {/* Progress bar */}
                         <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden hidden sm:block">
                           <div
                             className="h-2 bg-green-500 rounded-full transition-all"
@@ -127,10 +126,18 @@ export default function App() {
                     {isExpanded && (
                       <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50">
                         <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-3">
-                          <span>מחיר הענקה: <strong className="text-gray-800">₪{grant.grantPrice.toLocaleString('he-IL')}</strong></span>
+                          <span>מחיר הענקה: <strong className="text-gray-800">${grant.grantPrice.toLocaleString('he-IL')}</strong></span>
                           <span>מניות: <strong className="text-gray-800">{grant.totalShares.toLocaleString('he-IL')}</strong></span>
                           <span>משך: <strong className="text-gray-800">{grant.durationMonths} חודשים</strong></span>
                           <span>הבשלה: <strong className="text-gray-800">{VESTING_TYPE_LABELS[grant.vestingType]}</strong></span>
+                          {grant.yearlyPercentages && (
+                            <span>
+                              אחוזים לשנה:{' '}
+                              <strong className="text-gray-800">
+                                {grant.yearlyPercentages.map((p, i) => `שנה ${i + 1}: ${p}%`).join(' | ')}
+                              </strong>
+                            </span>
+                          )}
                         </div>
                         <button
                           className="btn-danger"
@@ -173,47 +180,18 @@ export default function App() {
           </div>
         )}
 
-        {/* Vesting Tab */}
+        {/* Vesting Tab — combined view of all grants */}
         {activeTab === 'vesting' && grants.length > 0 && (
           <div className="space-y-4">
-            {/* Grant selector (if multiple) */}
-            {grants.length > 1 && (
-              <div className="flex gap-2 flex-wrap">
-                {grants.map(g => (
-                  <button
-                    key={g.id}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      selectedGrantId === g.id
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                    onClick={() => setSelectedGrantId(g.id)}
-                  >
-                    {g.name}
-                  </button>
-                ))}
-              </div>
-            )}
+            <section className="card">
+              <h2 className="section-title">גרף הבשלה — כל ההענקות</h2>
+              <VestingChart grants={grants} />
+            </section>
 
-            {selectedGrant ? (
-              <>
-                {/* Chart */}
-                <section className="card">
-                  <h2 className="section-title">גרף הבשלה — {selectedGrant.name}</h2>
-                  <VestingChart grant={selectedGrant} />
-                </section>
-
-                {/* Table */}
-                <section className="card">
-                  <h2 className="section-title">לוח הבשלה מפורט</h2>
-                  <VestingTable grant={selectedGrant} />
-                </section>
-              </>
-            ) : (
-              <div className="card text-center text-gray-400 py-8">
-                בחר הענקה למעלה לצפייה בגרף
-              </div>
-            )}
+            <section className="card">
+              <h2 className="section-title">לוח הבשלה מפורט</h2>
+              <VestingTable grants={grants} />
+            </section>
           </div>
         )}
 

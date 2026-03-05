@@ -8,7 +8,6 @@ interface Props {
 }
 
 const defaultForm = {
-  name: '',
   ticker: '',
   grantDate: new Date().toISOString().split('T')[0],
   grantPrice: '',
@@ -76,7 +75,6 @@ export default function GrantForm({ onAdd }: Props) {
     const totalShares = parseInt(form.totalShares)
     const durationMonths = parseInt(form.durationMonths)
 
-    if (!form.name.trim()) return setError('יש להזין שם להענקה')
     if (isNaN(grantPrice) || grantPrice <= 0) return setError('מחיר הענקה חייב להיות מספר חיובי')
     if (isNaN(totalShares) || totalShares <= 0) return setError('מספר מניות חייב להיות מספר חיובי')
     if (isNaN(durationMonths) || durationMonths <= 0) return setError('משך הענקה חייב להיות מספר חיובי')
@@ -88,7 +86,6 @@ export default function GrantForm({ onAdd }: Props) {
 
     onAdd({
       id: uuidv4(),
-      name: form.name.trim(),
       ticker: form.ticker.trim().toUpperCase(),
       grantDate: form.grantDate,
       grantPrice,
@@ -105,16 +102,6 @@ export default function GrantForm({ onAdd }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="label">שם ההענקה</label>
-          <input
-            className="input"
-            placeholder="לדוגמה: Grant 2023"
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-          />
-        </div>
-
         <div>
           <label className="label">סימול מניה (Ticker)</label>
           <input
