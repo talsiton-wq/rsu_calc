@@ -377,8 +377,16 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
 
                         {bd.capitalGain > 0 && (
                           <>
-                            <span className="text-gray-600">רווח הון ({fmtPct(CAPITAL_GAIN_RATE)}):</span>
-                            <span className="text-left">{fmtCurrency(bd.capitalGain)}</span>
+                            <span className="text-gray-600">
+                              רווח הון ({fmtPct(CAPITAL_GAIN_RATE)}):
+                              <span className="text-xs text-gray-400 block">
+                                {bd.sharesToSell} × (${parsedPrice.toFixed(2)} − ${grant.grantPrice.toFixed(2)}) × ₪{parsedRate.toFixed(3)}
+                              </span>
+                            </span>
+                            <span className="text-left">
+                              {fmtCurrency(bd.capitalGain)}
+                              <span className="text-xs text-gray-400 block">(~${Math.round(bd.capitalGain / parsedRate).toLocaleString()})</span>
+                            </span>
                             <span className="text-gray-600">מס רווח הון:</span>
                             <span className="text-red-600 text-left">{fmtCurrency(bd.capitalGainTax)}</span>
                           </>
