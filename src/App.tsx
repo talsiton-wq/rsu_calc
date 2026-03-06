@@ -211,18 +211,21 @@ export default function App() {
                           <span>משך: <strong className="text-gray-800">{grant.durationMonths} חודשים</strong></span>
                         </div>
                         {livePrice && (
-                          <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="grid grid-cols-3 gap-2">
                             <div className="bg-green-50 border border-green-100 rounded-lg p-2">
-                              <p className="text-green-600">שווי הבשיל</p>
-                              <p className="font-bold text-green-700 text-sm">{fmtUSD(summary.vestedShares * livePrice)}</p>
+                              <p className="text-green-600 text-xs">שווי הבשיל</p>
+                              <p className="font-bold text-green-700 text-xl leading-tight">{fmtUSD(summary.vestedShares * livePrice)}</p>
+                              <p className="text-green-500 text-xs mt-0.5">{summary.vestedShares.toLocaleString('he-IL')} מניות</p>
                             </div>
                             <div className="bg-orange-50 border border-orange-100 rounded-lg p-2">
-                              <p className="text-orange-600">שווי נותר</p>
-                              <p className="font-bold text-orange-700 text-sm">{fmtUSD(summary.unvestedShares * livePrice)}</p>
+                              <p className="text-orange-600 text-xs">שווי נותר</p>
+                              <p className="font-bold text-orange-700 text-xl leading-tight">{fmtUSD(summary.unvestedShares * livePrice)}</p>
+                              <p className="text-orange-400 text-xs mt-0.5">{summary.unvestedShares.toLocaleString('he-IL')} מניות</p>
                             </div>
                             <div className="bg-blue-50 border border-blue-100 rounded-lg p-2">
-                              <p className="text-blue-600">שווי כולל</p>
-                              <p className="font-bold text-blue-700 text-sm">{fmtUSD(grant.totalShares * livePrice)}</p>
+                              <p className="text-blue-600 text-xs">שווי כולל</p>
+                              <p className="font-bold text-blue-700 text-xl leading-tight">{fmtUSD(grant.totalShares * livePrice)}</p>
+                              <p className="text-blue-400 text-xs mt-0.5">{grant.totalShares.toLocaleString('he-IL')} מניות</p>
                             </div>
                           </div>
                         )}
