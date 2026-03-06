@@ -45,17 +45,31 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
   const merged = mergeVestingSchedules(grants)
   const summary = getCombinedSummary(grants)
 
-  // Per-ticker aggregation (using correct per-grant vested shares)
-  const tickerMap: Record<string, { vested: number; unvested: number; total: number; price: number | null }> = {}
+  // Per-ticker aggregation — gross vested vs available (after sold)
+  const tickerMap: Record<string, {
+    grossVested: number  // total that have vested (regardless of sales)
+    sold: number         // how many were already sold
+    available: number    // grossVested - sold = זמין
+    unvested: number
+    total: number
+    price: number | null
+  }> = {}
   for (const g of grants) {
     const s = getVestingSummary(g)
     const price = tickerPrices[g.ticker] ?? null
-    if (!tickerMap[g.ticker]) tickerMap[g.ticker] = { vested: 0, unvested: 0, total: 0, price }
-    tickerMap[g.ticker].vested += s.vestedShares
+    if (!tickerMap[g.ticker]) tickerMap[g.ticker] = { grossVested: 0, sold: 0, available: 0, unvested: 0, total: 0, price }
+    tickerMap[g.ticker].grossVested += s.grossVested
+    tickerMap[g.ticker].sold += s.totalSold
+    tickerMap[g.ticker].available += s.vestedShares
     tickerMap[g.ticker].unvested += s.unvestedShares
     tickerMap[g.ticker].total += s.totalShares
   }
   const tickerSummary = Object.entries(tickerMap).map(([ticker, v]) => ({ ticker, ...v }))
+
+  // Overall gross/available totals (across all grants)
+  const totalGrossVested = tickerSummary.reduce((s, t) => s + t.grossVested, 0)
+  const totalSoldAll = tickerSummary.reduce((s, t) => s + t.sold, 0)
+  const totalAvailable = totalGrossVested - totalSoldAll
   const uniqueTickers = tickerSummary.map(t => t.ticker)
   const multiTicker = uniqueTickers.length > 1
 
@@ -63,7 +77,14 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
   uniqueTickers.forEach((t, i) => { tickerColors[t] = TICKER_PALETTE[i % TICKER_PALETTE.length] })
 
   // Fix: per-grant vested/unvested values using getVestingSummary (not global cumulativeVested)
+  // vestedValue = gross vested × price (what has vested, regardless of sales)
   const vestedValue = grants.reduce((sum, g) => {
+    const p = tickerPrices[g.ticker]
+    if (!p) return sum
+    return sum + getVestingSummary(g).grossVested * p
+  }, 0)
+  // availableValue = זמין × price (what's still in hand)
+  const availableValue = grants.reduce((sum, g) => {
     const p = tickerPrices[g.ticker]
     if (!p) return sum
     return sum + getVestingSummary(g).vestedShares * p
@@ -154,18 +175,27 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* Vested */}
         <div className="bg-green-50 rounded-xl p-3 border border-green-100">
-          <p className="text-xs text-green-600 font-medium mb-1">הבשילו (Vested)</p>
+          <p className="text-xs text-green-600 font-medium mb-1">הבשילו</p>
           {hasAnyPrice && vestedValue > 0 ? (
             <>
               <p className="text-2xl font-bold text-green-700 leading-tight">{fmtUSD(vestedValue)}</p>
               <p className="text-xs text-green-500 mt-0.5">
-                <span className="text-sm font-semibold text-green-600">{summary.vestedShares.toLocaleString('he-IL')}</span> מניות · {summary.vestedPercent.toFixed(1)}% מהסך הכל
+                <span className="text-sm font-semibold text-green-600">{totalGrossVested.toLocaleString('he-IL')}</span> מניות · {summary.vestedPercent.toFixed(1)}%
               </p>
+              {totalSoldAll > 0 && (
+                <p className="text-xs mt-1 font-semibold text-emerald-700">
+                  זמין: {fmtUSD(availableValue)}
+                  <span className="font-normal opacity-70 mr-1">({totalAvailable.toLocaleString('he-IL')} מניות)</span>
+                </p>
+              )}
             </>
           ) : (
             <>
-              <p className="text-2xl font-bold text-green-700">{summary.vestedShares.toLocaleString('he-IL')}</p>
+              <p className="text-2xl font-bold text-green-700">{totalGrossVested.toLocaleString('he-IL')}</p>
               <p className="text-xs text-green-500">{summary.vestedPercent.toFixed(1)}% מהסך הכל</p>
+              {totalSoldAll > 0 && (
+                <p className="text-xs mt-1 font-semibold text-emerald-700">זמין: {totalAvailable.toLocaleString('he-IL')}</p>
+              )}
             </>
           )}
           {multiTicker && (
@@ -174,11 +204,16 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
                 <div key={t.ticker} className="flex justify-between items-start gap-1">
                   <span className="text-xs font-bold shrink-0" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
                   <span className="text-right">
-                    {t.price != null && <span className="text-xs font-semibold text-green-700 block">{fmtUSD(t.vested * t.price)}</span>}
+                    {t.price != null && <span className="text-xs font-semibold text-green-700 block">{fmtUSD(t.grossVested * t.price)}</span>}
                     <span className="text-xs text-green-600 opacity-70">
-                      {t.vested.toLocaleString('he-IL')}<span className="opacity-60">/{t.total.toLocaleString('he-IL')}</span>
-                      {' '}({t.total > 0 ? ((t.vested / t.total) * 100).toFixed(0) : 0}%)
+                      {t.grossVested.toLocaleString('he-IL')}<span className="opacity-60">/{t.total.toLocaleString('he-IL')}</span>
+                      {' '}({t.total > 0 ? ((t.grossVested / t.total) * 100).toFixed(0) : 0}%)
                     </span>
+                    {t.sold > 0 && (
+                      <span className="text-xs text-emerald-700 font-semibold block">
+                        זמין: {t.price != null ? fmtUSD(t.available * t.price) : t.available.toLocaleString('he-IL')}
+                      </span>
+                    )}
                   </span>
                 </div>
               ))}
