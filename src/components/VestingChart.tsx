@@ -170,11 +170,14 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           {multiTicker && (
             <div className="mt-1.5 pt-1.5 border-t border-green-200 space-y-0.5">
               {tickerSummary.map(t => (
-                <p key={t.ticker} className="text-xs flex justify-between">
+                <p key={t.ticker} className="text-xs flex justify-between items-center gap-1">
                   <span className="font-semibold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
-                  <span className="text-green-600">
+                  <span className="text-green-600 text-right">
                     {t.vested.toLocaleString('he-IL')}
                     <span className="opacity-50">/{t.total.toLocaleString('he-IL')}</span>
+                    <span className="ml-1 text-green-500 opacity-70">
+                      ({t.total > 0 ? ((t.vested / t.total) * 100).toFixed(0) : 0}%)
+                    </span>
                   </span>
                 </p>
               ))}
@@ -201,11 +204,14 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           {multiTicker && (
             <div className="mt-1.5 pt-1.5 border-t border-orange-200 space-y-0.5">
               {tickerSummary.map(t => (
-                <p key={t.ticker} className="text-xs flex justify-between">
+                <p key={t.ticker} className="text-xs flex justify-between items-center gap-1">
                   <span className="font-semibold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
-                  <span className="text-orange-600">
+                  <span className="text-orange-600 text-right">
                     {t.unvested.toLocaleString('he-IL')}
                     <span className="opacity-50">/{t.total.toLocaleString('he-IL')}</span>
+                    <span className="ml-1 text-orange-500 opacity-70">
+                      ({t.total > 0 ? ((t.unvested / t.total) * 100).toFixed(0) : 0}%)
+                    </span>
                   </span>
                 </p>
               ))}
@@ -232,11 +238,14 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           {multiTicker && (
             <div className="mt-1.5 pt-1.5 border-t border-blue-200 space-y-0.5">
               {tickerSummary.map(t => (
-                <p key={t.ticker} className="text-xs flex justify-between">
+                <p key={t.ticker} className="text-xs flex justify-between items-center gap-1">
                   <span className="font-semibold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
-                  <span className="text-blue-600">
+                  <span className="text-blue-600 text-right">
                     {t.vested.toLocaleString('he-IL')}
                     <span className="opacity-50">/{t.total.toLocaleString('he-IL')}</span>
+                    <span className="ml-1 text-blue-500 opacity-70">
+                      ({t.total > 0 ? ((t.vested / t.total) * 100).toFixed(0) : 0}%)
+                    </span>
                   </span>
                 </p>
               ))}
