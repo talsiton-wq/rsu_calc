@@ -27,6 +27,32 @@ function fmtPct(n: number) {
   return `${(n * 100).toFixed(1)}%`
 }
 
+function getBracketDetails(baseIncome: number, additionalIncome: number) {
+  const start = baseIncome
+  const end = baseIncome + additionalIncome
+  return TAX_BRACKETS
+    .map(b => {
+      const from = Math.max(start, b.min)
+      const to = Math.min(end, b.max)
+      const inBracket = Math.max(0, to - from)
+      return { min: b.min, max: b.max, rate: b.rate, inBracket, tax: inBracket * b.rate }
+    })
+    .filter(x => x.inBracket > 0)
+}
+
+function getBLDetails(baseIncome: number, additionalIncome: number) {
+  const start = Math.min(baseIncome, 588_360)
+  const end = Math.min(baseIncome + additionalIncome, 588_360)
+  return BL_BRACKETS
+    .map(b => {
+      const from = Math.max(start, b.min)
+      const to = Math.min(end, b.max)
+      const inBracket = Math.max(0, to - from)
+      return { rate: b.rate, inBracket, tax: inBracket * b.rate, label: b.label }
+    })
+    .filter(x => x.inBracket > 0 && x.rate > 0)
+}
+
 export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRate = 3.7 }: Props) {
   const [annualIncome, setAnnualIncome] = useState('')
   const [currentPrice, setCurrentPrice] = useState('')
@@ -275,11 +301,15 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <h4 className="font-semibold text-gray-800">{grantLabel(grant)}</h4>
-                  <p className="text-xs text-gray-500">
-                    מחיר הענקה: ${grant.grantPrice.toFixed(2)}
-                    {livePrice && <> | מחיר עכשיו: <strong className="text-blue-600">${livePrice.toFixed(2)}</strong></>}
-                    {' '}| הבשילו: {fmt(vestSummary.vestedShares)} מניות
-                    {livePrice && <> ({<strong>${(vestSummary.vestedShares * livePrice).toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong>})</>}
+                  {livePrice && vestSummary.vestedShares > 0 && (
+                    <p className="text-2xl font-bold text-blue-700 leading-tight">
+                      ${(vestSummary.vestedShares * livePrice).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    <span className="font-medium">{fmt(vestSummary.vestedShares)} מניות</span> הבשילו
+                    {' | '}מחיר הענקה: ${grant.grantPrice.toFixed(2)}
+                    {livePrice && <> | עכשיו: <strong className="text-blue-600">${livePrice.toFixed(2)}</strong></>}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -378,6 +408,76 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                     <span className="font-semibold text-gray-700">רווח נקי:</span>
                     <span className="font-bold text-green-700 text-left">{fmtCurrency(bd.netProfit)}</span>
                   </div>
+
+                  {/* Bracket breakdown toggle */}
+                  <details className="mt-2">
+                    <summary className="text-xs text-blue-600 cursor-pointer select-none hover:text-blue-800">
+                      🔍 פרטי חישוב לפי מדרגות
+                    </summary>
+                    <div className="mt-2 space-y-3 text-xs">
+                      {/* Income tax brackets */}
+                      <div>
+                        <p className="font-semibold text-gray-700 mb-1">מס הכנסה — לפי מדרגות</p>
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b border-gray-200 text-gray-500">
+                              <th className="text-right py-1 pr-1">מדרגה</th>
+                              <th className="text-left py-1">הכנסה במדרגה</th>
+                              <th className="text-left py-1">שיעור</th>
+                              <th className="text-left py-1">מס</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {getBracketDetails(bd.isTwoYearsPassed ? parsedIncome : parsedIncome, bd.ordinaryIncome).map((row, i) => (
+                              <tr key={i} className="border-b border-gray-100">
+                                <td className="py-1 text-right text-gray-500 pr-1">
+                                  {fmtCurrency(row.min)}–{row.max === Infinity ? '∞' : fmtCurrency(row.max)}
+                                </td>
+                                <td className="py-1 text-left text-gray-700">{fmtCurrency(row.inBracket)}</td>
+                                <td className="py-1 text-left font-medium">{fmtPct(row.rate)}</td>
+                                <td className="py-1 text-left font-semibold text-red-600">{fmtCurrency(row.tax)}</td>
+                              </tr>
+                            ))}
+                            <tr className="border-t border-gray-300 font-semibold">
+                              <td colSpan={3} className="py-1 text-right pr-1 text-gray-700">סה"כ מס הכנסה</td>
+                              <td className="py-1 text-left text-red-700">{fmtCurrency(bd.ordinaryTax)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* BL brackets */}
+                      {bd.bituachLeumi > 0 && (
+                        <div>
+                          <p className="font-semibold text-gray-700 mb-1">ביטוח לאומי + בריאות — לפי מדרגות</p>
+                          <table className="w-full border-collapse">
+                            <thead>
+                              <tr className="border-b border-gray-200 text-gray-500">
+                                <th className="text-right py-1 pr-1">מדרגה</th>
+                                <th className="text-left py-1">הכנסה במדרגה</th>
+                                <th className="text-left py-1">שיעור</th>
+                                <th className="text-left py-1">ב"ל</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {getBLDetails(parsedIncome, bd.ordinaryIncome).map((row, i) => (
+                                <tr key={i} className="border-b border-gray-100">
+                                  <td className="py-1 text-right text-gray-500 pr-1 text-xs">{row.label}</td>
+                                  <td className="py-1 text-left text-gray-700">{fmtCurrency(row.inBracket)}</td>
+                                  <td className="py-1 text-left font-medium">{fmtPct(row.rate)}</td>
+                                  <td className="py-1 text-left font-semibold text-orange-600">{fmtCurrency(row.tax)}</td>
+                                </tr>
+                              ))}
+                              <tr className="border-t border-gray-300 font-semibold">
+                                <td colSpan={3} className="py-1 text-right pr-1 text-gray-700">סה"כ ב"ל + בריאות</td>
+                                <td className="py-1 text-left text-orange-700">{fmtCurrency(bd.bituachLeumi)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </details>
 
                   {bd.yisufhSubjectAmount > 0 && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-800">

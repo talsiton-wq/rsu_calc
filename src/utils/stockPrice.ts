@@ -20,11 +20,58 @@ function csvCell(raw = ''): string {
  *
  * Routes through allorigins.win proxy to avoid CORS issues.
  */
+/** Fetch a URL with a timeout. Throws on network error or non-ok status. */
+async function tryFetch(url: string, timeoutMs = 8000): Promise<string> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.text()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function tryFetchJson(url: string, timeoutMs = 8000): Promise<any> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function fetchCsvText(): Promise<string> {
+  const enc = encodeURIComponent(SHEETS_CSV_URL)
+
+  // Race all options simultaneously — first success wins
+  const attempts: Promise<string>[] = [
+    tryFetch(SHEETS_CSV_URL),
+    tryFetch(`https://corsproxy.io/?${enc}`),
+    tryFetchJson(`https://api.allorigins.win/get?url=${enc}`)
+      .then(j => j.contents as string),
+    tryFetch(`https://api.codetabs.com/v1/proxy?quest=${enc}`),
+  ]
+
+  const errors: string[] = []
+  // Use allSettled pattern but resolve on first success
+  return new Promise((resolve, reject) => {
+    let settled = 0
+    for (const p of attempts) {
+      p.then(resolve).catch(e => {
+        errors.push(String(e))
+        if (++settled === attempts.length) reject(new Error(`כל הנתיבים נכשלו: ${errors.join(' | ')}`))
+      })
+    }
+  })
+}
+
 export async function fetchGoogleSheetsData(): Promise<SheetsData> {
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(SHEETS_CSV_URL)}`
-  const res = await fetch(proxyUrl, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`Sheets fetch failed: ${res.status}`)
-  const text = await res.text()
+  const text = await fetchCsvText()
   const rows = text.split('\n').map(r => r.split(',').map(csvCell))
 
   // USD rate is in C2 → rows[1][2]

@@ -32,11 +32,11 @@ export default function VestingTable({ grants, tickerPrices = {} }: Props) {
             {multiGrant && (
               <th className="text-right py-2 px-3 font-semibold text-gray-600">הענקה</th>
             )}
-            <th className="text-right py-2 px-3 font-semibold text-gray-600">תקופה</th>
-            <th className="text-left py-2 px-3 font-semibold text-gray-600">מניות בתקופה</th>
             {hasPrice && (
               <th className="text-left py-2 px-3 font-semibold text-blue-600">שווי הבשלה</th>
             )}
+            <th className="text-left py-2 px-3 font-semibold text-gray-600">מניות בתקופה</th>
+            <th className="text-right py-2 px-3 font-semibold text-gray-600">תקופה</th>
             <th className="text-left py-2 px-3 font-semibold text-gray-600">מצטבר Vested</th>
             {hasPrice && (
               <th className="text-left py-2 px-3 font-semibold text-green-700">שווי Vested</th>
@@ -62,15 +62,15 @@ export default function VestingTable({ grants, tickerPrices = {} }: Props) {
                 {multiGrant && (
                   <td className="py-2 px-3 text-gray-500 text-xs">{event.grantLabel}</td>
                 )}
-                <td className="py-2 px-3 text-gray-500">{event.periodLabel}</td>
-                <td className="py-2 px-3 text-left font-medium text-blue-700">
-                  +{event.sharesVested.toLocaleString('he-IL')}
-                </td>
                 {hasPrice && (
                   <td className="py-2 px-3 text-left font-medium text-blue-600">
                     {price ? fmt(event.sharesVested * price) : '—'}
                   </td>
                 )}
+                <td className="py-2 px-3 text-left font-medium text-blue-700">
+                  +{event.sharesVested.toLocaleString('he-IL')}
+                </td>
+                <td className="py-2 px-3 text-gray-500">{event.periodLabel}</td>
                 <td className="py-2 px-3 text-left font-semibold text-green-700">
                   {event.cumulativeVested.toLocaleString('he-IL')}
                 </td>
