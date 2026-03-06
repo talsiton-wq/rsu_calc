@@ -195,13 +195,38 @@ export function mergeVestingSchedules(grants: Grant[]): MergedVestingEvent[] {
 export function getCombinedSummary(grants: Grant[]) {
   const totalShares = grants.reduce((s, g) => s + g.totalShares, 0)
   let vestedShares = 0
-  let nextVesting: VestingEvent | undefined
+  let earliestDate: string | undefined
 
   for (const grant of grants) {
     const s = getVestingSummary(grant)
     vestedShares += s.vestedShares
-    if (s.nextVesting && (!nextVesting || s.nextVesting.date < nextVesting.date)) {
-      nextVesting = s.nextVesting
+    if (s.nextVesting && (!earliestDate || s.nextVesting.date < earliestDate)) {
+      earliestDate = s.nextVesting.date
+    }
+  }
+
+  // Sum shares from ALL grants that vest on the same earliest date
+  let nextVesting: VestingEvent | undefined
+  if (earliestDate) {
+    let combinedShares = 0
+    let cumulativeVested = 0
+    for (const grant of grants) {
+      const events = calculateVestingSchedule(grant)
+      for (const e of events) {
+        if (e.date === earliestDate && !e.isPast) {
+          combinedShares += e.sharesVested
+        }
+      }
+    }
+    // Use vestedShares + combinedShares as a rough cumulative
+    cumulativeVested = vestedShares + combinedShares
+    nextVesting = {
+      date: earliestDate,
+      sharesVested: combinedShares,
+      periodLabel: '',
+      cumulativeVested,
+      cumulativeUnvested: totalShares - cumulativeVested,
+      isPast: false,
     }
   }
 

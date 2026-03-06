@@ -11,7 +11,7 @@ import {
   ReferenceLine,
 } from 'recharts'
 import type { Grant } from '../types'
-import { mergeVestingSchedules, getCombinedSummary, formatDate, getVestingSummary, grantLabel } from '../utils/vestingCalculator'
+import { mergeVestingSchedules, getCombinedSummary, formatDate, getVestingSummary, grantLabel, calculateVestingSchedule } from '../utils/vestingCalculator'
 
 interface Props {
   grants: Grant[]
@@ -74,15 +74,24 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
     return sum + getVestingSummary(g).unvestedShares * p
   }, 0)
 
-  // Weighted average price for nextVesting card
-  const weightedPrice = (() => {
-    let totalValue = 0
-    let totalWithPrice = 0
+  // Compute next vesting value: sum across all grants that vest on the same earliest date
+  const nextVestingValue = (() => {
+    if (!summary.nextVesting) return null
+    const date = summary.nextVesting.date
+    let total = 0
+    let hasSomePrice = false
     for (const g of grants) {
       const p = tickerPrices[g.ticker]
-      if (p) { totalValue += g.totalShares * p; totalWithPrice += g.totalShares }
+      if (!p) continue
+      const events = calculateVestingSchedule(g)
+      for (const e of events) {
+        if (e.date === date && !e.isPast) {
+          total += e.sharesVested * p
+          hasSomePrice = true
+        }
+      }
     }
-    return totalWithPrice > 0 ? totalValue / totalWithPrice : null
+    return hasSomePrice ? total : null
   })()
 
   const hasAnyPrice = Object.keys(tickerPrices).length > 0
@@ -232,13 +241,13 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           {summary.nextVesting ? (
             <>
               <p className="text-sm font-bold text-purple-700">{formatDate(summary.nextVesting.date)}</p>
-              {weightedPrice ? (
+              {nextVestingValue != null ? (
                 <>
-                  <p className="text-xl font-bold text-purple-700 leading-tight">{fmtUSD(summary.nextVesting.sharesVested * weightedPrice)}</p>
+                  <p className="text-xl font-bold text-purple-700 leading-tight">{fmtUSD(nextVestingValue)}</p>
                   <p className="text-xs text-purple-500 mt-0.5">+<span className="text-sm font-semibold text-purple-600">{summary.nextVesting.sharesVested.toLocaleString('he-IL')}</span> מניות</p>
                 </>
               ) : (
-                <p className="text-xs text-purple-500">+{summary.nextVesting.sharesVested.toLocaleString('he-IL')} מניות</p>
+                <p className="text-2xl font-bold text-purple-700">+{summary.nextVesting.sharesVested.toLocaleString('he-IL')}</p>
               )}
             </>
           ) : (
