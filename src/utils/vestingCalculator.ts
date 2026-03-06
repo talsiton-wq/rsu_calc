@@ -245,15 +245,19 @@ export function getCombinedSummary(grants: Grant[]) {
 export function getVestingSummary(grant: Grant) {
   const events = calculateVestingSchedule(grant)
   const vestedEvents = events.filter(e => e.isPast)
-  const vestedShares = vestedEvents.length > 0 ? vestedEvents[vestedEvents.length - 1].cumulativeVested : 0
-  const unvestedShares = grant.totalShares - vestedShares
+  const grossVested = vestedEvents.length > 0 ? vestedEvents[vestedEvents.length - 1].cumulativeVested : 0
+  const totalSold = Object.values(grant.soldEvents ?? {}).reduce((s, n) => s + n, 0)
+  const vestedShares = Math.max(0, grossVested - totalSold)  // net available in hand
+  const unvestedShares = grant.totalShares - grossVested
   const nextVesting = events.find(e => !e.isPast)
 
   return {
-    vestedShares,
+    vestedShares,       // net: after subtracting sold shares
+    grossVested,        // gross: total that have vested to date
+    totalSold,
     unvestedShares,
     totalShares: grant.totalShares,
-    vestedPercent: grant.totalShares > 0 ? (vestedShares / grant.totalShares) * 100 : 0,
+    vestedPercent: grant.totalShares > 0 ? (grossVested / grant.totalShares) * 100 : 0,
     nextVesting,
     completedPeriods: vestedEvents.length,
     totalPeriods: events.length,

@@ -5,6 +5,7 @@ import { mergeVestingSchedules, formatDate } from '../utils/vestingCalculator'
 interface Props {
   grants: Grant[]
   tickerPrices?: Record<string, number>
+  onSold?: (grantId: string, eventDate: string, sold: number) => void
 }
 
 function fmt(n: number) {
@@ -13,7 +14,7 @@ function fmt(n: number) {
 
 const TICKER_PALETTE = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444']
 
-export default function VestingTable({ grants, tickerPrices = {} }: Props) {
+export default function VestingTable({ grants, tickerPrices = {}, onSold }: Props) {
   const events = mergeVestingSchedules(grants)
   const totalShares = grants.reduce((s, g) => s + g.totalShares, 0)
   const hasPrice = Object.keys(tickerPrices).length > 0
@@ -21,6 +22,12 @@ export default function VestingTable({ grants, tickerPrices = {} }: Props) {
   const grantPrice: Record<string, number> = {}
   for (const g of grants) {
     if (tickerPrices[g.ticker]) grantPrice[g.id] = tickerPrices[g.ticker]
+  }
+
+  // soldEvents per grant, keyed by grantId → eventDate → sold
+  const soldByGrant: Record<string, Record<string, number>> = {}
+  for (const g of grants) {
+    soldByGrant[g.id] = g.soldEvents ?? {}
   }
 
   const uniqueTickers = [...new Set(grants.map(g => g.ticker))]
@@ -154,6 +161,8 @@ export default function VestingTable({ grants, tickerPrices = {} }: Props) {
                             price={grantPrice[event.grantId]}
                             hasPrice={hasPrice}
                             borderColor={multiTicker ? color : undefined}
+                            sold={soldByGrant[event.grantId]?.[event.date] ?? 0}
+                            onSold={onSold ? (sold) => onSold(event.grantId, event.date, sold) : undefined}
                           />
                         ))}
                       </>
@@ -223,9 +232,12 @@ interface EventRowProps {
   price: number | undefined
   hasPrice: boolean
   borderColor: string | undefined
+  sold?: number
+  onSold?: (sold: number) => void
 }
 
-function EventRow({ event, price, hasPrice, borderColor }: EventRowProps) {
+function EventRow({ event, price, hasPrice, borderColor, sold = 0, onSold }: EventRowProps) {
+  const inHand = event.sharesVested - sold
   return (
     <tr
       style={borderColor ? { borderLeft: `3px solid ${borderColor}` } : {}}
@@ -240,7 +252,27 @@ function EventRow({ event, price, hasPrice, borderColor }: EventRowProps) {
         </td>
       )}
       <td className="py-2 px-3 text-left font-medium text-blue-700">
-        +{event.sharesVested.toLocaleString('he-IL')}
+        <div>+{event.sharesVested.toLocaleString('he-IL')}</div>
+        {event.isPast && onSold && (
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            <span className="text-xs text-gray-400">מכרתי:</span>
+            <input
+              type="number"
+              min={0}
+              max={event.sharesVested}
+              value={sold || ''}
+              placeholder="0"
+              onChange={e => {
+                const v = Math.max(0, Math.min(event.sharesVested, parseInt(e.target.value) || 0))
+                onSold(v)
+              }}
+              className="w-16 text-xs border border-gray-300 rounded px-1.5 py-0.5 text-center focus:border-blue-400 focus:outline-none"
+            />
+            <span className={`text-xs font-semibold ${inHand > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+              ביד: {inHand.toLocaleString('he-IL')}
+            </span>
+          </div>
+        )}
       </td>
       <td className="py-2 px-3 text-gray-500">{event.periodLabel}</td>
       <td className="py-2 px-3 text-left font-semibold text-green-700">

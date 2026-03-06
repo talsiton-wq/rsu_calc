@@ -10,6 +10,7 @@ export interface Grant {
   vestingType: VestingType
   yearlyPercentages?: number[]    // for asymmetric: % per year, must sum to 100
   yearlyVestingTypes?: VestingType[] // for asymmetric: vesting frequency per year (annual/quarterly/etc.)
+  soldEvents?: Record<string, number>  // eventDate (ISO) → shares sold from that event
 }
 
 export interface VestingEvent {
