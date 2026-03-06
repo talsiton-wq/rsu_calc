@@ -260,14 +260,16 @@ function EventRow({ event, price, hasPrice, borderColor, sold = 0, onSold }: Eve
   }, [sold])
 
   const commit = (val: string) => {
-    const n = Math.max(0, Math.min(event.sharesVested, parseInt(val) || 0))
+    const n = Math.max(0, parseInt(val) || 0)
     onSold!(n)
     setInputVal(n > 0 ? String(n) : '')
     setJustSaved(true)
     setTimeout(() => setJustSaved(false), 1200)
   }
 
-  const inHand = event.sharesVested - (parseInt(inputVal) || sold)
+  const currentVal = parseInt(inputVal) || sold
+  const inHand = event.sharesVested - currentVal
+  const isOverSold = currentVal > event.sharesVested
   return (
     <tr
       style={borderColor ? { borderLeft: `3px solid ${borderColor}` } : {}}
@@ -296,17 +298,21 @@ function EventRow({ event, price, hasPrice, borderColor, sold = 0, onSold }: Eve
               onBlur={() => commit(inputVal)}
               onKeyDown={e => e.key === 'Enter' && (e.currentTarget.blur(), commit(inputVal))}
               style={{ direction: 'ltr', textAlign: 'left' }}
-              className="w-16 text-xs border border-gray-300 rounded px-1.5 py-0.5 focus:border-blue-400 focus:outline-none"
+              className={`w-16 text-xs border rounded px-1.5 py-0.5 focus:outline-none ${
+                isOverSold ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-blue-400'
+              }`}
             />
-            <span className={`text-sm font-bold px-1.5 py-0.5 rounded transition-colors ${
-              justSaved
-                ? 'bg-green-200 text-green-800'
-                : inHand > 0
-                  ? 'text-green-700'
-                  : 'text-gray-400'
-            }`}>
-              ✓ זמין: {inHand.toLocaleString('he-IL')}
-            </span>
+            {isOverSold ? (
+              <span className="text-xs text-red-600 font-semibold">
+                לא ניתן למכור יותר מ-{event.sharesVested.toLocaleString('he-IL')}
+              </span>
+            ) : (
+              <span className={`text-sm font-bold px-1.5 py-0.5 rounded transition-colors ${
+                justSaved ? 'bg-green-200 text-green-800' : inHand > 0 ? 'text-green-700' : 'text-gray-400'
+              }`}>
+                ✓ זמין: {inHand.toLocaleString('he-IL')}
+              </span>
+            )}
           </div>
         )}
       </td>
