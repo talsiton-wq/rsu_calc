@@ -23,6 +23,10 @@ function fmt(n: number) {
 function fmtCurrency(n: number) {
   return `₪${fmt(Math.round(n))}`
 }
+function fmtUSD(n: number, rate: number) {
+  if (!rate) return ''
+  return ` (~$${Math.round(n / rate).toLocaleString('en-US')})`
+}
 function fmtPct(n: number) {
   return `${(n * 100).toFixed(1)}%`
 }
@@ -380,18 +384,26 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                   <p className="font-semibold text-gray-700 text-xs uppercase tracking-wide">חישוב מס — הענקה זו</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                     <span className="text-gray-600">תמורה כוללת:</span>
-                    <span className="font-semibold text-gray-800 text-left">{fmtCurrency(bd.saleProceeds)}</span>
+                    <span className="font-semibold text-gray-800 text-left">
+                      {fmtCurrency(bd.saleProceeds)}<span className="text-xs text-gray-400">{fmtUSD(bd.saleProceeds, parsedRate)}</span>
+                    </span>
 
                     {bd.isTwoYearsPassed ? (
                       <>
                         <span className="text-gray-600">הכנסת עבודה ({bd.sharesToSell} × ${Math.min(effectivePriceUSD(grant.ticker), grant.grantPrice).toFixed(2)}):</span>
-                        <span className="text-left">{fmtCurrency(bd.ordinaryIncome)}</span>
+                        <span className="text-left">
+                          {fmtCurrency(bd.ordinaryIncome)}<span className="text-xs text-gray-400">{fmtUSD(bd.ordinaryIncome, parsedRate)}</span>
+                        </span>
 
                         <span className="text-gray-600">מס הכנסה על הכנסה:</span>
-                        <span className="text-red-600 text-left">{fmtCurrency(bd.ordinaryTax)}</span>
+                        <span className="text-red-600 text-left">
+                          {fmtCurrency(bd.ordinaryTax)}<span className="text-xs text-red-300">{fmtUSD(bd.ordinaryTax, parsedRate)}</span>
+                        </span>
 
                         <span className="text-gray-600">ביטוח לאומי + בריאות:</span>
-                        <span className="text-red-600 text-left">{fmtCurrency(bd.bituachLeumi)}</span>
+                        <span className="text-red-600 text-left">
+                          {fmtCurrency(bd.bituachLeumi)}<span className="text-xs text-red-300">{fmtUSD(bd.bituachLeumi, parsedRate)}</span>
+                        </span>
 
                         {bd.capitalGain > 0 && (
                           <>
@@ -402,28 +414,35 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                               </span>
                             </span>
                             <span className="text-left">
-                              {fmtCurrency(bd.capitalGain)}
-                              <span className="text-xs text-gray-400 block">(~${Math.round(bd.capitalGain / parsedRate).toLocaleString()})</span>
+                              {fmtCurrency(bd.capitalGain)}<span className="text-xs text-gray-400">{fmtUSD(bd.capitalGain, parsedRate)}</span>
                             </span>
                             <span className="text-gray-600">מס רווח הון:</span>
-                            <span className="text-red-600 text-left">{fmtCurrency(bd.capitalGainTax)}</span>
+                            <span className="text-red-600 text-left">
+                              {fmtCurrency(bd.capitalGainTax)}<span className="text-xs text-red-300">{fmtUSD(bd.capitalGainTax, parsedRate)}</span>
+                            </span>
                           </>
                         )}
                       </>
                     ) : (
                       <>
                         <span className="text-gray-600">הכנסה רגילה:</span>
-                        <span className="text-left">{fmtCurrency(bd.ordinaryIncome)}</span>
+                        <span className="text-left">
+                          {fmtCurrency(bd.ordinaryIncome)}<span className="text-xs text-gray-400">{fmtUSD(bd.ordinaryIncome, parsedRate)}</span>
+                        </span>
                         <span className="text-gray-600">מס הכנסה:</span>
-                        <span className="text-red-600 text-left">{fmtCurrency(bd.ordinaryTax)}</span>
+                        <span className="text-red-600 text-left">
+                          {fmtCurrency(bd.ordinaryTax)}<span className="text-xs text-red-300">{fmtUSD(bd.ordinaryTax, parsedRate)}</span>
+                        </span>
                         <span className="text-gray-600">ביטוח לאומי + בריאות:</span>
-                        <span className="text-red-600 text-left">{fmtCurrency(bd.bituachLeumi)}</span>
+                        <span className="text-red-600 text-left">
+                          {fmtCurrency(bd.bituachLeumi)}<span className="text-xs text-red-300">{fmtUSD(bd.bituachLeumi, parsedRate)}</span>
+                        </span>
                       </>
                     )}
 
                     <span className="font-semibold text-gray-700 border-t border-gray-200 pt-1">סה"כ מס + ב"ל:</span>
                     <span className="font-bold text-red-700 text-left border-t border-gray-200 pt-1">
-                      {fmtCurrency(bd.totalTax + bd.bituachLeumi)}
+                      {fmtCurrency(bd.totalTax + bd.bituachLeumi)}<span className="text-xs text-red-300 font-normal">{fmtUSD(bd.totalTax + bd.bituachLeumi, parsedRate)}</span>
                     </span>
 
                     <span className="font-semibold text-gray-700">שיעור אפקטיבי:</span>
@@ -432,7 +451,9 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                     </span>
 
                     <span className="font-semibold text-gray-700">רווח נקי:</span>
-                    <span className="font-bold text-green-700 text-left">{fmtCurrency(bd.netProfit)}</span>
+                    <span className="font-bold text-green-700 text-left">
+                      {fmtCurrency(bd.netProfit)}<span className="text-xs text-green-500 font-normal">{fmtUSD(bd.netProfit, parsedRate)}</span>
+                    </span>
                   </div>
 
                   {/* Bracket breakdown toggle */}
