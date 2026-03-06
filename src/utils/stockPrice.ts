@@ -11,9 +11,12 @@ export interface SheetsData {
  * Sheet format:
  *   Row 0: headers, C1 = USD/ILS rate
  *   Rows 1+: A = ticker, B = price (USD)
+ *
+ * Routes through allorigins.win proxy to avoid CORS issues.
  */
 export async function fetchGoogleSheetsData(): Promise<SheetsData> {
-  const res = await fetch(SHEETS_CSV_URL, { cache: 'no-store' })
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(SHEETS_CSV_URL)}`
+  const res = await fetch(proxyUrl, { cache: 'no-store' })
   if (!res.ok) throw new Error(`Sheets fetch failed: ${res.status}`)
   const text = await res.text()
   const rows = text.trim().split('\n')

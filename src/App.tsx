@@ -32,22 +32,27 @@ export default function App() {
   const [usdRate, setUsdRate] = useState<number>(3.7)
   const [pricesStatus, setPricesStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
 
+  const [pricesError, setPricesError] = useState('')
+
   async function loadPrices() {
     if (pricesStatus === 'loading') return
     setPricesStatus('loading')
+    setPricesError('')
     try {
       const { usdRate: rate, prices } = await fetchGoogleSheetsData()
       setUsdRate(rate)
       setTickerPrices(prices)
       setPricesStatus('ok')
-    } catch {
+    } catch (err: any) {
       setPricesStatus('error')
+      setPricesError(err?.message ?? 'שגיאה לא ידועה')
+      console.error('[loadPrices]', err)
     }
   }
 
-  // Auto-fetch on mount whenever there are saved grants
+  // Auto-fetch on mount (with or without saved grants)
   useEffect(() => {
-    if (grants.length > 0) loadPrices()
+    loadPrices()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist to localStorage on every change
@@ -104,9 +109,12 @@ export default function App() {
                 <span className="text-xs text-gray-400">⏳ טוען מחירים...</span>
               )}
               {pricesStatus === 'error' && (
-                <button onClick={loadPrices} className="text-xs text-red-500 underline">
-                  ❌ שגיאה — נסה שוב
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-red-400">{pricesError}</span>
+                  <button onClick={loadPrices} className="text-xs text-red-500 underline whitespace-nowrap">
+                    ❌ שגיאה — נסה שוב
+                  </button>
+                </div>
               )}
               {pricesStatus === 'ok' && (
                 <span className="text-xs text-green-600">✅ מחירים עדכניים</span>
