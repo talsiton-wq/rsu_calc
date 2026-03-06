@@ -227,9 +227,11 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-left hidden sm:block">
-                          <p className="text-xs text-gray-500">זמין / הבשיל / סה"כ</p>
-                          <p className="text-sm font-semibold text-gray-700">
-                            {summary.vestedShares.toLocaleString('he-IL')} / {summary.grossVested.toLocaleString('he-IL')} / {grant.totalShares.toLocaleString('he-IL')}
+                          <p className="text-sm font-bold text-green-700">
+                            {summary.vestedShares.toLocaleString('he-IL')} <span className="text-xs font-normal text-green-600">זמין</span>
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            הבשילו {summary.grossVested.toLocaleString('he-IL')} · סה"כ {grant.totalShares.toLocaleString('he-IL')}
                           </p>
                           {livePrice && (
                             <p className="text-xs mt-0.5">
@@ -260,12 +262,13 @@ export default function App() {
                         </div>
                         {livePrice && (
                           <div className="grid grid-cols-3 gap-2 text-xs">
-                            <div className="bg-green-50 border border-green-100 rounded-lg p-2">
-                              <p className="text-green-600">זמין</p>
-                              <p className="font-bold text-green-700 text-sm">{fmtUSD(summary.vestedShares * livePrice)}</p>
-                              <p className="text-green-500 mt-0.5">{summary.vestedShares.toLocaleString('he-IL')} מניות</p>
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                              <p className="text-xs text-green-500 mb-0.5">הבשילו: {summary.grossVested.toLocaleString('he-IL')} מניות</p>
+                              <p className="text-green-700 font-semibold text-sm">זמין</p>
+                              <p className="font-bold text-green-800 text-base">{fmtUSD(summary.vestedShares * livePrice)}</p>
+                              <p className="text-green-600 font-semibold mt-0.5">{summary.vestedShares.toLocaleString('he-IL')} מניות</p>
                               {summary.totalSold > 0 && (
-                                <p className="text-red-400 mt-0.5 text-xs">{summary.totalSold.toLocaleString('he-IL')} נמכרו</p>
+                                <p className="text-red-400 mt-0.5 text-xs">מכרתי: {summary.totalSold.toLocaleString('he-IL')}</p>
                               )}
                             </div>
                             <div className="bg-orange-50 border border-orange-100 rounded-lg p-2">

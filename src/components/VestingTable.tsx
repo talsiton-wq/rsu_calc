@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Grant } from '../types'
 import { mergeVestingSchedules, formatDate } from '../utils/vestingCalculator'
 
@@ -23,6 +23,15 @@ export default function VestingTable({ grants, tickerPrices = {}, onSold }: Prop
   for (const g of grants) {
     if (tickerPrices[g.ticker]) grantPrice[g.id] = tickerPrices[g.ticker]
   }
+
+  // Total available = grossVested - sold across all grants
+  const totalAvailable = grants.reduce((sum, g) => {
+    const sold = Object.values(g.soldEvents ?? {}).reduce((a, b) => a + b, 0)
+    const grossVested = events
+      .filter(e => e.grantId === g.id && e.isPast)
+      .reduce((max, e) => Math.max(max, e.cumulativeVested), 0)
+    return sum + Math.max(0, grossVested - sold)
+  }, 0)
 
   // soldEvents per grant, keyed by grantId → eventDate → sold
   const soldByGrant: Record<string, Record<string, number>> = {}
@@ -210,8 +219,13 @@ export default function VestingTable({ grants, tickerPrices = {}, onSold }: Prop
         <tfoot>
           <tr className="border-t-2 border-gray-200 bg-gray-50">
             <td colSpan={hasPrice ? 2 : 1} className="py-2 px-3 font-semibold text-gray-700">סך הכל</td>
-            <td className="py-2 px-3 text-left font-bold text-blue-700">
-              {totalShares.toLocaleString('he-IL')}
+            <td className="py-2 px-3 text-left">
+              <div className="font-bold text-green-700 text-base">
+                {totalAvailable.toLocaleString('he-IL')} <span className="text-xs font-normal text-green-600">זמינות</span>
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                סה"כ {totalShares.toLocaleString('he-IL')}
+              </div>
             </td>
             <td colSpan={hasPrice ? 6 : 4} />
           </tr>
@@ -237,7 +251,23 @@ interface EventRowProps {
 }
 
 function EventRow({ event, price, hasPrice, borderColor, sold = 0, onSold }: EventRowProps) {
-  const inHand = event.sharesVested - sold
+  const [inputVal, setInputVal] = useState(sold > 0 ? String(sold) : '')
+  const [justSaved, setJustSaved] = useState(false)
+
+  // Sync input if parent resets sold to 0 (e.g. after import)
+  useEffect(() => {
+    setInputVal(sold > 0 ? String(sold) : '')
+  }, [sold])
+
+  const commit = (val: string) => {
+    const n = Math.max(0, Math.min(event.sharesVested, parseInt(val) || 0))
+    onSold!(n)
+    setInputVal(n > 0 ? String(n) : '')
+    setJustSaved(true)
+    setTimeout(() => setJustSaved(false), 1200)
+  }
+
+  const inHand = event.sharesVested - (parseInt(inputVal) || sold)
   return (
     <tr
       style={borderColor ? { borderLeft: `3px solid ${borderColor}` } : {}}
@@ -257,19 +287,25 @@ function EventRow({ event, price, hasPrice, borderColor, sold = 0, onSold }: Eve
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             <span className="text-xs text-gray-400">מכרתי:</span>
             <input
-              type="number"
-              min={0}
-              max={event.sharesVested}
-              value={sold || ''}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              dir="ltr"
+              value={inputVal}
               placeholder="0"
-              onChange={e => {
-                const v = Math.max(0, Math.min(event.sharesVested, parseInt(e.target.value) || 0))
-                onSold(v)
-              }}
+              onChange={e => setInputVal(e.target.value.replace(/[^\d]/g, ''))}
+              onBlur={() => commit(inputVal)}
+              onKeyDown={e => e.key === 'Enter' && (e.currentTarget.blur(), commit(inputVal))}
               className="w-16 text-xs border border-gray-300 rounded px-1.5 py-0.5 text-center focus:border-blue-400 focus:outline-none"
             />
-            <span className={`text-xs font-semibold ${inHand > 0 ? 'text-green-700' : 'text-gray-400'}`}>
-              זמין: {inHand.toLocaleString('he-IL')}
+            <span className={`text-sm font-bold px-1.5 py-0.5 rounded transition-colors ${
+              justSaved
+                ? 'bg-green-200 text-green-800'
+                : inHand > 0
+                  ? 'text-green-700'
+                  : 'text-gray-400'
+            }`}>
+              ✓ זמין: {inHand.toLocaleString('he-IL')}
             </span>
           </div>
         )}
