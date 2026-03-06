@@ -6,11 +6,17 @@ export interface SheetsData {
   prices: Record<string, number> // ticker -> USD price
 }
 
+/** Clean a raw CSV cell: strip \r, whitespace, surrounding quotes */
+function csvCell(raw = ''): string {
+  return raw.replace(/\r/g, '').trim().replace(/^"(.*)"$/, '$1').trim()
+}
+
 /**
  * Fetch live prices + USD/ILS rate from the Google Sheet.
- * Sheet format:
- *   Row 0: headers, C1 = USD/ILS rate
- *   Rows 1+: A = ticker, B = price (USD)
+ * Sheet layout:
+ *   Row 1 (index 0): headers — A=Ticker, B=Price, C=<label>
+ *   Row 2 (index 1): first data row — C2 = USD/ILS rate
+ *   Rows 3+ (index 2+): ticker rows — A=ticker, B=price USD
  *
  * Routes through allorigins.win proxy to avoid CORS issues.
  */
@@ -19,17 +25,23 @@ export async function fetchGoogleSheetsData(): Promise<SheetsData> {
   const res = await fetch(proxyUrl, { cache: 'no-store' })
   if (!res.ok) throw new Error(`Sheets fetch failed: ${res.status}`)
   const text = await res.text()
-  const rows = text.trim().split('\n')
+  const rows = text.split('\n').map(r => r.split(',').map(csvCell))
 
-  const usdRate = parseFloat(rows[0]?.split(',')[2] ?? '')
-  if (isNaN(usdRate) || usdRate <= 0) throw new Error('לא נמצא שער דולר בגיליון')
+  // USD rate is in C2 → rows[1][2]
+  const usdRate = parseFloat(rows[1]?.[2] ?? '')
+  if (isNaN(usdRate) || usdRate <= 0) {
+    const preview = rows.slice(0, 3).map(r => r.join(' | ')).join(' // ')
+    throw new Error(`לא נמצא שער דולר (C2). תצוגה: ${preview}`)
+  }
 
   const prices: Record<string, number> = {}
+  // Ticker rows start from row 2 (index 2) — but also check row 1 in case it has a ticker
   for (let i = 1; i < rows.length; i++) {
-    const cols = rows[i].split(',')
-    const ticker = cols[0]?.trim().toUpperCase()
-    const price = parseFloat(cols[1])
-    if (ticker && !isNaN(price) && price > 0) prices[ticker] = price
+    const ticker = rows[i][0].toUpperCase()
+    const price = parseFloat(rows[i][1])
+    if (ticker && ticker.length > 0 && !isNaN(price) && price > 0) {
+      prices[ticker] = price
+    }
   }
 
   return { usdRate, prices }
