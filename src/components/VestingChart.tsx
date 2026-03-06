@@ -11,12 +11,14 @@ import {
   ReferenceLine,
 } from 'recharts'
 import type { Grant } from '../types'
-import { mergeVestingSchedules, getCombinedSummary, formatDate } from '../utils/vestingCalculator'
+import { mergeVestingSchedules, getCombinedSummary, formatDate, getVestingSummary, grantLabel } from '../utils/vestingCalculator'
 
 interface Props {
   grants: Grant[]
   tickerPrices?: Record<string, number>
 }
+
+const TICKER_PALETTE = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444']
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -43,8 +45,36 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
   const merged = mergeVestingSchedules(grants)
   const summary = getCombinedSummary(grants)
 
-  // Weighted average price for multi-ticker portfolios (for summary cards)
-  // We use totalShares-weighted average across tickers that have a price
+  // Per-ticker aggregation (using correct per-grant vested shares)
+  const tickerMap: Record<string, { vested: number; unvested: number; total: number }> = {}
+  for (const g of grants) {
+    const s = getVestingSummary(g)
+    if (!tickerMap[g.ticker]) tickerMap[g.ticker] = { vested: 0, unvested: 0, total: 0 }
+    tickerMap[g.ticker].vested += s.vestedShares
+    tickerMap[g.ticker].unvested += s.unvestedShares
+    tickerMap[g.ticker].total += s.totalShares
+  }
+  const tickerSummary = Object.entries(tickerMap).map(([ticker, v]) => ({ ticker, ...v }))
+  const uniqueTickers = tickerSummary.map(t => t.ticker)
+  const multiTicker = uniqueTickers.length > 1
+
+  const tickerColors: Record<string, string> = {}
+  uniqueTickers.forEach((t, i) => { tickerColors[t] = TICKER_PALETTE[i % TICKER_PALETTE.length] })
+
+  // Fix: per-grant vested/unvested values using getVestingSummary (not global cumulativeVested)
+  const vestedValue = grants.reduce((sum, g) => {
+    const p = tickerPrices[g.ticker]
+    if (!p) return sum
+    return sum + getVestingSummary(g).vestedShares * p
+  }, 0)
+
+  const unvestedValue = grants.reduce((sum, g) => {
+    const p = tickerPrices[g.ticker]
+    if (!p) return sum
+    return sum + getVestingSummary(g).unvestedShares * p
+  }, 0)
+
+  // Weighted average price for nextVesting card
   const weightedPrice = (() => {
     let totalValue = 0
     let totalWithPrice = 0
@@ -55,38 +85,50 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
     return totalWithPrice > 0 ? totalValue / totalWithPrice : null
   })()
 
-  // Per-grant vested/unvested value map
-  const grantPriceMap: Record<string, number> = {}
-  for (const g of grants) {
-    if (tickerPrices[g.ticker]) grantPriceMap[g.id] = tickerPrices[g.ticker]
-  }
+  const hasAnyPrice = Object.keys(tickerPrices).length > 0
 
-  // Aggregate same-date events for chart bars
-  const dateMap = new Map<string, { label: string, sharesVested: number, cumulativeVested: number, cumulativeUnvested: number, isPast: boolean }>()
+  // Build chart data — track per-ticker shares per date
+  const dateMap = new Map<string, {
+    label: string
+    cumulativeVested: number
+    cumulativeUnvested: number
+    isPast: boolean
+    perTicker: Record<string, number>
+  }>()
+
   for (const e of merged) {
     if (dateMap.has(e.date)) {
       const existing = dateMap.get(e.date)!
-      existing.sharesVested += e.sharesVested
       existing.cumulativeVested = e.cumulativeVested
       existing.cumulativeUnvested = e.cumulativeUnvested
+      existing.perTicker[e.ticker] = (existing.perTicker[e.ticker] || 0) + e.sharesVested
     } else {
       dateMap.set(e.date, {
         label: e.periodLabel,
-        sharesVested: e.sharesVested,
         cumulativeVested: e.cumulativeVested,
         cumulativeUnvested: e.cumulativeUnvested,
         isPast: e.isPast,
+        perTicker: { [e.ticker]: e.sharesVested },
       })
     }
   }
 
-  const chartData = Array.from(dateMap.values()).map(d => ({
-    label: d.label,
-    'מניות שהבשילו (מצטבר)': d.cumulativeVested,
-    'מניות שלא הבשילו': d.cumulativeUnvested,
-    'הבשלה בתקופה': d.sharesVested,
-    isPast: d.isPast,
-  }))
+  const chartData = Array.from(dateMap.values()).map(d => {
+    const obj: Record<string, any> = {
+      label: d.label,
+      'מניות שהבשילו (מצטבר)': d.cumulativeVested,
+      'מניות שלא הבשילו': d.cumulativeUnvested,
+      isPast: d.isPast,
+    }
+    if (multiTicker) {
+      for (const ticker of uniqueTickers) {
+        obj[ticker] = d.perTicker[ticker] || 0
+      }
+    } else {
+      obj['הבשלה בתקופה'] = Object.values(d.perTicker).reduce((s, v) => s + v, 0)
+    }
+    return obj
+  })
 
   const todayLabel = (() => {
     const entries = Array.from(dateMap.entries())
@@ -96,37 +138,19 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
     return entries[entries.length - 1]?.[1].label
   })()
 
-  // Compute total vested/unvested values across all grants
-  const vestedValue = grants.reduce((sum, g) => {
-    const p = tickerPrices[g.ticker]
-    if (!p) return sum
-    const { vestedShares } = (() => {
-      const ev = merged.filter(e => e.grantId === g.id && e.isPast)
-      const vs = ev.length ? ev[ev.length - 1].cumulativeVested : 0
-      return { vestedShares: vs }
-    })()
-    return sum + vestedShares * p
-  }, 0)
-
-  const unvestedValue = grants.reduce((sum, g) => {
-    const p = tickerPrices[g.ticker]
-    if (!p) return sum
-    const unvested = g.totalShares - merged.filter(e => e.grantId === g.id && e.isPast).reduce((s, e, i, arr) => i === arr.length - 1 ? e.cumulativeVested : s, 0)
-    return sum + unvested * p
-  }, 0)
-
-  const hasAnyPrice = Object.keys(tickerPrices).length > 0
-
   return (
     <div className="space-y-5">
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* Vested */}
         <div className="bg-green-50 rounded-xl p-3 border border-green-100">
           <p className="text-xs text-green-600 font-medium mb-1">הבשילו (Vested)</p>
           {hasAnyPrice && vestedValue > 0 ? (
             <>
               <p className="text-2xl font-bold text-green-700 leading-tight">{fmtUSD(vestedValue)}</p>
-              <p className="text-xs text-green-500 mt-0.5"><span className="text-sm font-semibold text-green-600">{summary.vestedShares.toLocaleString('he-IL')}</span> מניות · {summary.vestedPercent.toFixed(1)}% מהסך הכל</p>
+              <p className="text-xs text-green-500 mt-0.5">
+                <span className="text-sm font-semibold text-green-600">{summary.vestedShares.toLocaleString('he-IL')}</span> מניות · {summary.vestedPercent.toFixed(1)}% מהסך הכל
+              </p>
             </>
           ) : (
             <>
@@ -134,13 +158,27 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
               <p className="text-xs text-green-500">{summary.vestedPercent.toFixed(1)}% מהסך הכל</p>
             </>
           )}
+          {multiTicker && (
+            <div className="mt-1.5 pt-1.5 border-t border-green-200 space-y-0.5">
+              {tickerSummary.map(t => (
+                <p key={t.ticker} className="text-xs flex justify-between">
+                  <span className="font-semibold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
+                  <span className="text-green-600">{t.vested.toLocaleString('he-IL')}</span>
+                </p>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Unvested */}
         <div className="bg-orange-50 rounded-xl p-3 border border-orange-100">
           <p className="text-xs text-orange-600 font-medium mb-1">לא הבשילו (Unvested)</p>
           {hasAnyPrice && unvestedValue > 0 ? (
             <>
               <p className="text-2xl font-bold text-orange-700 leading-tight">{fmtUSD(unvestedValue)}</p>
-              <p className="text-xs text-orange-500 mt-0.5"><span className="text-sm font-semibold text-orange-600">{summary.unvestedShares.toLocaleString('he-IL')}</span> מניות · {(100 - summary.vestedPercent).toFixed(1)}% מהסך הכל</p>
+              <p className="text-xs text-orange-500 mt-0.5">
+                <span className="text-sm font-semibold text-orange-600">{summary.unvestedShares.toLocaleString('he-IL')}</span> מניות · {(100 - summary.vestedPercent).toFixed(1)}% מהסך הכל
+              </p>
             </>
           ) : (
             <>
@@ -148,13 +186,27 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
               <p className="text-xs text-orange-500">{(100 - summary.vestedPercent).toFixed(1)}% מהסך הכל</p>
             </>
           )}
+          {multiTicker && (
+            <div className="mt-1.5 pt-1.5 border-t border-orange-200 space-y-0.5">
+              {tickerSummary.map(t => (
+                <p key={t.ticker} className="text-xs flex justify-between">
+                  <span className="font-semibold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
+                  <span className="text-orange-600">{t.unvested.toLocaleString('he-IL')}</span>
+                </p>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Total */}
         <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
           <p className="text-xs text-blue-600 font-medium mb-1">סך הכל מניות</p>
           {hasAnyPrice && (vestedValue + unvestedValue) > 0 ? (
             <>
               <p className="text-2xl font-bold text-blue-700 leading-tight">{fmtUSD(vestedValue + unvestedValue)}</p>
-              <p className="text-xs text-blue-500 mt-0.5"><span className="text-sm font-semibold text-blue-600">{summary.totalShares.toLocaleString('he-IL')}</span> מניות · {grants.length} הענקות</p>
+              <p className="text-xs text-blue-500 mt-0.5">
+                <span className="text-sm font-semibold text-blue-600">{summary.totalShares.toLocaleString('he-IL')}</span> מניות · {grants.length} הענקות
+              </p>
             </>
           ) : (
             <>
@@ -162,7 +214,19 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
               <p className="text-xs text-blue-500">{grants.length} הענקות</p>
             </>
           )}
+          {multiTicker && (
+            <div className="mt-1.5 pt-1.5 border-t border-blue-200 space-y-0.5">
+              {tickerSummary.map(t => (
+                <p key={t.ticker} className="text-xs flex justify-between">
+                  <span className="font-semibold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
+                  <span className="text-blue-600">{t.total.toLocaleString('he-IL')}</span>
+                </p>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Next Vesting */}
         <div className="bg-purple-50 rounded-xl p-3 border border-purple-100">
           <p className="text-xs text-purple-600 font-medium mb-1">הבשלה הבאה</p>
           {summary.nextVesting ? (
@@ -182,6 +246,18 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           )}
         </div>
       </div>
+
+      {/* Multi-ticker legend for chart */}
+      {multiTicker && (
+        <div className="flex flex-wrap gap-3 text-xs">
+          {uniqueTickers.map(ticker => (
+            <span key={ticker} className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: tickerColors[ticker] }} />
+              <span className="font-medium text-gray-600">{ticker}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Chart */}
       <div className="h-64">
@@ -212,12 +288,20 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
               fillOpacity={0.4}
               strokeWidth={2}
             />
-            <Bar
-              dataKey="הבשלה בתקופה"
-              fill="#93c5fd"
-              opacity={0.7}
-              radius={[4, 4, 0, 0]}
-            />
+            {multiTicker ? (
+              uniqueTickers.map((ticker, i) => (
+                <Bar
+                  key={ticker}
+                  dataKey={ticker}
+                  stackId="vesting"
+                  fill={tickerColors[ticker]}
+                  opacity={0.8}
+                  radius={i === uniqueTickers.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                />
+              ))
+            ) : (
+              <Bar dataKey="הבשלה בתקופה" fill="#93c5fd" opacity={0.7} radius={[4, 4, 0, 0]} />
+            )}
             {todayLabel && (
               <ReferenceLine
                 x={todayLabel}
