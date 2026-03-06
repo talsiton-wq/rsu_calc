@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Grant } from '../types'
 import { mergeVestingSchedules, formatDate } from '../utils/vestingCalculator'
 
@@ -27,12 +28,28 @@ export default function VestingTable({ grants, tickerPrices = {} }: Props) {
   const tickerColors: Record<string, string> = {}
   uniqueTickers.forEach((t, i) => { tickerColors[t] = TICKER_PALETTE[i % TICKER_PALETTE.length] })
 
-  // When multi-ticker: group by ticker then sort by date within each group
-  const renderEvents = multiTicker
-    ? uniqueTickers.flatMap(ticker => events.filter(e => e.ticker === ticker))
-    : events
+  // Expand/collapse state per ticker
+  const [expandedTickers, setExpandedTickers] = useState<Set<string>>(() => new Set(uniqueTickers))
+  // Per ticker: which sub-sections are open
+  const [expandedSections, setExpandedSections] = useState<Record<string, { vested: boolean; unvested: boolean }>>(() =>
+    Object.fromEntries(uniqueTickers.map(t => [t, { vested: true, unvested: true }]))
+  )
 
-  // Total column count for colSpan calculations
+  const toggleTicker = (ticker: string) => {
+    setExpandedTickers(prev => {
+      const next = new Set(prev)
+      next.has(ticker) ? next.delete(ticker) : next.add(ticker)
+      return next
+    })
+  }
+
+  const toggleSection = (ticker: string, section: 'vested' | 'unvested') => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [ticker]: { ...prev[ticker], [section]: !prev[ticker]?.[section] },
+    }))
+  }
+
   const colCount = 1 + (hasPrice ? 1 : 0) + 1 + 1 + 1 + (hasPrice ? 1 : 0) + 1 + (hasPrice ? 1 : 0) + 1
 
   return (
@@ -70,69 +87,109 @@ export default function VestingTable({ grants, tickerPrices = {} }: Props) {
           </tr>
         </thead>
         <tbody>
-          {renderEvents.map((event, idx) => {
-            const isNewTicker = multiTicker && (idx === 0 || renderEvents[idx - 1].ticker !== event.ticker)
-            const price = grantPrice[event.grantId]
-            const borderColor = multiTicker ? tickerColors[event.ticker] : undefined
+          {uniqueTickers.map(ticker => {
+            const tickerEvents = events.filter(e => e.ticker === ticker)
+            const vestedEvents = tickerEvents.filter(e => e.isPast)
+            const unvestedEvents = tickerEvents.filter(e => !e.isPast)
+            const color = tickerColors[ticker]
+            const isTickerOpen = expandedTickers.has(ticker)
+            const sections = expandedSections[ticker] ?? { vested: true, unvested: true }
 
             return (
               <>
-                {isNewTicker && (
-                  <tr key={`ticker-header-${event.ticker}`}>
+                {/* Ticker header row — always shown in multi-ticker; acts as collapse toggle */}
+                {multiTicker && (
+                  <tr
+                    key={`ticker-header-${ticker}`}
+                    className="cursor-pointer select-none"
+                    onClick={() => toggleTicker(ticker)}
+                  >
                     <td
                       colSpan={colCount}
                       className="py-1.5 px-3 font-bold text-sm"
                       style={{
-                        backgroundColor: tickerColors[event.ticker] + '18',
-                        borderLeft: `4px solid ${tickerColors[event.ticker]}`,
-                        color: tickerColors[event.ticker],
+                        backgroundColor: color + '18',
+                        borderLeft: `4px solid ${color}`,
+                        color,
                       }}
                     >
-                      {event.ticker}
+                      <span className="mr-1">{isTickerOpen ? '▾' : '▸'}</span>
+                      {ticker}
+                      <span className="ml-3 text-xs font-normal opacity-60">
+                        {vestedEvents.length} הבשיל · {unvestedEvents.length} עתידי
+                      </span>
                     </td>
                   </tr>
                 )}
-                <tr
-                  key={idx}
-                  style={borderColor ? { borderLeft: `3px solid ${borderColor}` } : {}}
-                  className={`border-b border-gray-50 transition-colors ${
-                    event.isPast ? 'bg-green-50/40' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <td className="py-2 px-3 text-gray-700">{formatDate(event.date)}</td>
-                  {hasPrice && (
-                    <td className="py-2 px-3 text-left font-medium text-blue-600">
-                      {price ? fmt(event.sharesVested * price) : '—'}
-                    </td>
-                  )}
-                  <td className="py-2 px-3 text-left font-medium text-blue-700">
-                    +{event.sharesVested.toLocaleString('he-IL')}
-                  </td>
-                  <td className="py-2 px-3 text-gray-500">{event.periodLabel}</td>
-                  <td className="py-2 px-3 text-left font-semibold text-green-700">
-                    {event.cumulativeVested.toLocaleString('he-IL')}
-                  </td>
-                  {hasPrice && (
-                    <td className="py-2 px-3 text-left font-semibold text-green-700">
-                      {price ? fmt(event.cumulativeVested * price) : '—'}
-                    </td>
-                  )}
-                  <td className="py-2 px-3 text-left text-orange-600">
-                    {event.cumulativeUnvested.toLocaleString('he-IL')}
-                  </td>
-                  {hasPrice && (
-                    <td className="py-2 px-3 text-left text-orange-500">
-                      {price ? fmt(event.cumulativeUnvested * price) : '—'}
-                    </td>
-                  )}
-                  <td className="py-2 px-3 text-center">
-                    {event.isPast ? (
-                      <span className="tag-green">הבשיל ✓</span>
-                    ) : (
-                      <span className="tag-orange">עתידי</span>
+
+                {/* Inner rows — only when ticker is expanded (or single ticker) */}
+                {(isTickerOpen || !multiTicker) && (
+                  <>
+                    {/* Vested sub-header */}
+                    {vestedEvents.length > 0 && (
+                      <>
+                        <tr
+                          key={`vested-header-${ticker}`}
+                          className="cursor-pointer select-none"
+                          onClick={() => toggleSection(ticker, 'vested')}
+                        >
+                          <td
+                            colSpan={colCount}
+                            className="py-1 px-4 text-xs font-semibold text-green-700 bg-green-50/60"
+                            style={multiTicker ? { borderLeft: `3px solid ${color}` } : {}}
+                          >
+                            <span className="mr-1">{sections.vested ? '▾' : '▸'}</span>
+                            הבשיל ✓
+                            <span className="ml-2 font-normal opacity-70">
+                              ({vestedEvents.length} אירועים)
+                            </span>
+                          </td>
+                        </tr>
+                        {sections.vested && vestedEvents.map((event, idx) => (
+                          <EventRow
+                            key={`vested-${ticker}-${idx}`}
+                            event={event}
+                            price={grantPrice[event.grantId]}
+                            hasPrice={hasPrice}
+                            borderColor={multiTicker ? color : undefined}
+                          />
+                        ))}
+                      </>
                     )}
-                  </td>
-                </tr>
+
+                    {/* Unvested sub-header */}
+                    {unvestedEvents.length > 0 && (
+                      <>
+                        <tr
+                          key={`unvested-header-${ticker}`}
+                          className="cursor-pointer select-none"
+                          onClick={() => toggleSection(ticker, 'unvested')}
+                        >
+                          <td
+                            colSpan={colCount}
+                            className="py-1 px-4 text-xs font-semibold text-orange-600 bg-orange-50/60"
+                            style={multiTicker ? { borderLeft: `3px solid ${color}` } : {}}
+                          >
+                            <span className="mr-1">{sections.unvested ? '▾' : '▸'}</span>
+                            עתידי
+                            <span className="ml-2 font-normal opacity-70">
+                              ({unvestedEvents.length} אירועים)
+                            </span>
+                          </td>
+                        </tr>
+                        {sections.unvested && unvestedEvents.map((event, idx) => (
+                          <EventRow
+                            key={`unvested-${ticker}-${idx}`}
+                            event={event}
+                            price={grantPrice[event.grantId]}
+                            hasPrice={hasPrice}
+                            borderColor={multiTicker ? color : undefined}
+                          />
+                        ))}
+                      </>
+                    )}
+                  </>
+                )}
               </>
             )
           })}
@@ -148,5 +205,63 @@ export default function VestingTable({ grants, tickerPrices = {} }: Props) {
         </tfoot>
       </table>
     </div>
+  )
+}
+
+// ── extracted row component ──────────────────────────────────────────────────
+
+function fmt2(n: number) {
+  return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+}
+
+interface EventRowProps {
+  event: ReturnType<typeof mergeVestingSchedules>[number]
+  price: number | undefined
+  hasPrice: boolean
+  borderColor: string | undefined
+}
+
+function EventRow({ event, price, hasPrice, borderColor }: EventRowProps) {
+  return (
+    <tr
+      style={borderColor ? { borderLeft: `3px solid ${borderColor}` } : {}}
+      className={`border-b border-gray-50 transition-colors ${
+        event.isPast ? 'bg-green-50/40' : 'hover:bg-gray-50'
+      }`}
+    >
+      <td className="py-2 px-3 text-gray-700">{formatDate(event.date)}</td>
+      {hasPrice && (
+        <td className="py-2 px-3 text-left font-medium text-blue-600">
+          {price ? fmt2(event.sharesVested * price) : '—'}
+        </td>
+      )}
+      <td className="py-2 px-3 text-left font-medium text-blue-700">
+        +{event.sharesVested.toLocaleString('he-IL')}
+      </td>
+      <td className="py-2 px-3 text-gray-500">{event.periodLabel}</td>
+      <td className="py-2 px-3 text-left font-semibold text-green-700">
+        {event.cumulativeVested.toLocaleString('he-IL')}
+      </td>
+      {hasPrice && (
+        <td className="py-2 px-3 text-left font-semibold text-green-700">
+          {price ? fmt2(event.cumulativeVested * price) : '—'}
+        </td>
+      )}
+      <td className="py-2 px-3 text-left text-orange-600">
+        {event.cumulativeUnvested.toLocaleString('he-IL')}
+      </td>
+      {hasPrice && (
+        <td className="py-2 px-3 text-left text-orange-500">
+          {price ? fmt2(event.cumulativeUnvested * price) : '—'}
+        </td>
+      )}
+      <td className="py-2 px-3 text-center">
+        {event.isPast ? (
+          <span className="tag-green">הבשיל ✓</span>
+        ) : (
+          <span className="tag-orange">עתידי</span>
+        )}
+      </td>
+    </tr>
   )
 }

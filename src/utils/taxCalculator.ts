@@ -114,8 +114,9 @@ export function calculateGrantTax(
     ordinaryTax = calculateMarginalTax(annualIncome, ordinaryIncome)
     capitalGainTax = 0
   } else {
-    // 2+ years: split — up to grant price is ordinary income, above is capital gain
-    ordinaryIncome = sharesToSell * grant.grantPrice
+    // 2+ years: split — up to grant price is ordinary income, above is capital gain.
+    // If currentPrice < grantPrice, entire proceeds are ordinary income (no capital gain).
+    ordinaryIncome = sharesToSell * Math.min(currentPrice, grant.grantPrice)
     capitalGain = Math.max(0, sharesToSell * (currentPrice - grant.grantPrice))
     ordinaryTax = calculateMarginalTax(annualIncome, ordinaryIncome)
     capitalGainTax = capitalGain * CAPITAL_GAIN_RATE
