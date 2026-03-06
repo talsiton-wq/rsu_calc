@@ -1,9 +1,41 @@
+const SHEETS_CSV_URL =
+  'https://docs.google.com/spreadsheets/d/1-KZraAgxgWBBsgcWhqa5HAq7FZ1LKygIN4YplchdW5Y/export?format=csv'
+
+export interface SheetsData {
+  usdRate: number
+  prices: Record<string, number> // ticker -> USD price
+}
+
 /**
- * Fetch USD/ILS exchange rate from Frankfurter (free, CORS-friendly, ECB data).
- * Falls back to Yahoo Finance via proxy if Frankfurter fails.
+ * Fetch live prices + USD/ILS rate from the Google Sheet.
+ * Sheet format:
+ *   Row 0: headers, C1 = USD/ILS rate
+ *   Rows 1+: A = ticker, B = price (USD)
+ */
+export async function fetchGoogleSheetsData(): Promise<SheetsData> {
+  const res = await fetch(SHEETS_CSV_URL, { cache: 'no-store' })
+  if (!res.ok) throw new Error(`Sheets fetch failed: ${res.status}`)
+  const text = await res.text()
+  const rows = text.trim().split('\n')
+
+  const usdRate = parseFloat(rows[0]?.split(',')[2] ?? '')
+  if (isNaN(usdRate) || usdRate <= 0) throw new Error('לא נמצא שער דולר בגיליון')
+
+  const prices: Record<string, number> = {}
+  for (let i = 1; i < rows.length; i++) {
+    const cols = rows[i].split(',')
+    const ticker = cols[0]?.trim().toUpperCase()
+    const price = parseFloat(cols[1])
+    if (ticker && !isNaN(price) && price > 0) prices[ticker] = price
+  }
+
+  return { usdRate, prices }
+}
+
+/**
+ * Fetch USD/ILS exchange rate — Frankfurter first, Google Sheet fallback.
  */
 export async function fetchUsdIlsRate(): Promise<number> {
-  // Primary: Frankfurter API (European Central Bank data, free, no key)
   try {
     const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=ILS')
     if (res.ok) {
@@ -13,7 +45,6 @@ export async function fetchUsdIlsRate(): Promise<number> {
     }
   } catch { /* fall through */ }
 
-  // Fallback: Yahoo Finance via proxy
   return fetchStockPrice('USDILS=X')
 }
 

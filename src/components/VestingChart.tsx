@@ -15,6 +15,7 @@ import { mergeVestingSchedules, getCombinedSummary, formatDate } from '../utils/
 
 interface Props {
   grants: Grant[]
+  tickerPrices?: Record<string, number>
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -34,9 +35,31 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null
 }
 
-export default function VestingChart({ grants }: Props) {
+function fmtUSD(n: number) {
+  return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+}
+
+export default function VestingChart({ grants, tickerPrices = {} }: Props) {
   const merged = mergeVestingSchedules(grants)
   const summary = getCombinedSummary(grants)
+
+  // Weighted average price for multi-ticker portfolios (for summary cards)
+  // We use totalShares-weighted average across tickers that have a price
+  const weightedPrice = (() => {
+    let totalValue = 0
+    let totalWithPrice = 0
+    for (const g of grants) {
+      const p = tickerPrices[g.ticker]
+      if (p) { totalValue += g.totalShares * p; totalWithPrice += g.totalShares }
+    }
+    return totalWithPrice > 0 ? totalValue / totalWithPrice : null
+  })()
+
+  // Per-grant vested/unvested value map
+  const grantPriceMap: Record<string, number> = {}
+  for (const g of grants) {
+    if (tickerPrices[g.ticker]) grantPriceMap[g.id] = tickerPrices[g.ticker]
+  }
 
   // Aggregate same-date events for chart bars
   const dateMap = new Map<string, { label: string, sharesVested: number, cumulativeVested: number, cumulativeUnvested: number, isPast: boolean }>()
@@ -73,6 +96,27 @@ export default function VestingChart({ grants }: Props) {
     return entries[entries.length - 1]?.[1].label
   })()
 
+  // Compute total vested/unvested values across all grants
+  const vestedValue = grants.reduce((sum, g) => {
+    const p = tickerPrices[g.ticker]
+    if (!p) return sum
+    const { vestedShares } = (() => {
+      const ev = merged.filter(e => e.grantId === g.id && e.isPast)
+      const vs = ev.length ? ev[ev.length - 1].cumulativeVested : 0
+      return { vestedShares: vs }
+    })()
+    return sum + vestedShares * p
+  }, 0)
+
+  const unvestedValue = grants.reduce((sum, g) => {
+    const p = tickerPrices[g.ticker]
+    if (!p) return sum
+    const unvested = g.totalShares - merged.filter(e => e.grantId === g.id && e.isPast).reduce((s, e, i, arr) => i === arr.length - 1 ? e.cumulativeVested : s, 0)
+    return sum + unvested * p
+  }, 0)
+
+  const hasAnyPrice = Object.keys(tickerPrices).length > 0
+
   return (
     <div className="space-y-5">
       {/* Summary Cards */}
@@ -81,16 +125,25 @@ export default function VestingChart({ grants }: Props) {
           <p className="text-xs text-green-600 font-medium mb-1">הבשילו (Vested)</p>
           <p className="text-2xl font-bold text-green-700">{summary.vestedShares.toLocaleString('he-IL')}</p>
           <p className="text-xs text-green-500">{summary.vestedPercent.toFixed(1)}% מהסך הכל</p>
+          {hasAnyPrice && vestedValue > 0 && (
+            <p className="text-xs font-semibold text-green-700 mt-1">{fmtUSD(vestedValue)}</p>
+          )}
         </div>
         <div className="bg-orange-50 rounded-xl p-3 border border-orange-100">
           <p className="text-xs text-orange-600 font-medium mb-1">לא הבשילו (Unvested)</p>
           <p className="text-2xl font-bold text-orange-700">{summary.unvestedShares.toLocaleString('he-IL')}</p>
           <p className="text-xs text-orange-500">{(100 - summary.vestedPercent).toFixed(1)}% מהסך הכל</p>
+          {hasAnyPrice && unvestedValue > 0 && (
+            <p className="text-xs font-semibold text-orange-700 mt-1">{fmtUSD(unvestedValue)}</p>
+          )}
         </div>
         <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
           <p className="text-xs text-blue-600 font-medium mb-1">סך הכל מניות</p>
           <p className="text-2xl font-bold text-blue-700">{summary.totalShares.toLocaleString('he-IL')}</p>
           <p className="text-xs text-blue-500">{grants.length} הענקות</p>
+          {hasAnyPrice && (vestedValue + unvestedValue) > 0 && (
+            <p className="text-xs font-semibold text-blue-700 mt-1">{fmtUSD(vestedValue + unvestedValue)}</p>
+          )}
         </div>
         <div className="bg-purple-50 rounded-xl p-3 border border-purple-100">
           <p className="text-xs text-purple-600 font-medium mb-1">הבשלה הבאה</p>
@@ -98,6 +151,11 @@ export default function VestingChart({ grants }: Props) {
             <>
               <p className="text-sm font-bold text-purple-700">{formatDate(summary.nextVesting.date)}</p>
               <p className="text-xs text-purple-500">+{summary.nextVesting.sharesVested.toLocaleString('he-IL')} מניות</p>
+              {weightedPrice && (
+                <p className="text-xs font-semibold text-purple-700 mt-1">
+                  {fmtUSD(summary.nextVesting.sharesVested * weightedPrice)}
+                </p>
+              )}
             </>
           ) : (
             <p className="text-sm font-bold text-purple-700">הסתיימה</p>

@@ -45,6 +45,7 @@ export interface TaxBreakdown {
 
   totalTax: number
   netProfit: number
+  bituachLeumi: number   // National Insurance on ordinary income portion
 
   // Yisuph (surcharge) note
   yisufhSubjectAmount: number   // amount above threshold subject to extra 3%
@@ -55,6 +56,7 @@ export interface TaxSummary {
   totalOrdinaryTax: number
   totalCapitalGainTax: number
   totalTax: number
+  totalBituachLeumi: number
   totalNetProfit: number
   finalTaxableIncome: number
   yisufhNote: number
