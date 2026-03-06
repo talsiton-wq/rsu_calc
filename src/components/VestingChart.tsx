@@ -123,26 +123,44 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-green-50 rounded-xl p-3 border border-green-100">
           <p className="text-xs text-green-600 font-medium mb-1">הבשילו (Vested)</p>
-          <p className="text-2xl font-bold text-green-700">{summary.vestedShares.toLocaleString('he-IL')}</p>
-          <p className="text-xs text-green-500">{summary.vestedPercent.toFixed(1)}% מהסך הכל</p>
-          {hasAnyPrice && vestedValue > 0 && (
-            <p className="text-xs font-semibold text-green-700 mt-1">{fmtUSD(vestedValue)}</p>
+          {hasAnyPrice && vestedValue > 0 ? (
+            <>
+              <p className="text-2xl font-bold text-green-700 leading-tight">{fmtUSD(vestedValue)}</p>
+              <p className="text-xs text-green-500 mt-0.5">{summary.vestedShares.toLocaleString('he-IL')} מניות · {summary.vestedPercent.toFixed(1)}% מהסך הכל</p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-green-700">{summary.vestedShares.toLocaleString('he-IL')}</p>
+              <p className="text-xs text-green-500">{summary.vestedPercent.toFixed(1)}% מהסך הכל</p>
+            </>
           )}
         </div>
         <div className="bg-orange-50 rounded-xl p-3 border border-orange-100">
           <p className="text-xs text-orange-600 font-medium mb-1">לא הבשילו (Unvested)</p>
-          <p className="text-2xl font-bold text-orange-700">{summary.unvestedShares.toLocaleString('he-IL')}</p>
-          <p className="text-xs text-orange-500">{(100 - summary.vestedPercent).toFixed(1)}% מהסך הכל</p>
-          {hasAnyPrice && unvestedValue > 0 && (
-            <p className="text-xs font-semibold text-orange-700 mt-1">{fmtUSD(unvestedValue)}</p>
+          {hasAnyPrice && unvestedValue > 0 ? (
+            <>
+              <p className="text-2xl font-bold text-orange-700 leading-tight">{fmtUSD(unvestedValue)}</p>
+              <p className="text-xs text-orange-500 mt-0.5">{summary.unvestedShares.toLocaleString('he-IL')} מניות · {(100 - summary.vestedPercent).toFixed(1)}% מהסך הכל</p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-orange-700">{summary.unvestedShares.toLocaleString('he-IL')}</p>
+              <p className="text-xs text-orange-500">{(100 - summary.vestedPercent).toFixed(1)}% מהסך הכל</p>
+            </>
           )}
         </div>
         <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
           <p className="text-xs text-blue-600 font-medium mb-1">סך הכל מניות</p>
-          <p className="text-2xl font-bold text-blue-700">{summary.totalShares.toLocaleString('he-IL')}</p>
-          <p className="text-xs text-blue-500">{grants.length} הענקות</p>
-          {hasAnyPrice && (vestedValue + unvestedValue) > 0 && (
-            <p className="text-xs font-semibold text-blue-700 mt-1">{fmtUSD(vestedValue + unvestedValue)}</p>
+          {hasAnyPrice && (vestedValue + unvestedValue) > 0 ? (
+            <>
+              <p className="text-2xl font-bold text-blue-700 leading-tight">{fmtUSD(vestedValue + unvestedValue)}</p>
+              <p className="text-xs text-blue-500 mt-0.5">{summary.totalShares.toLocaleString('he-IL')} מניות · {grants.length} הענקות</p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-blue-700">{summary.totalShares.toLocaleString('he-IL')}</p>
+              <p className="text-xs text-blue-500">{grants.length} הענקות</p>
+            </>
           )}
         </div>
         <div className="bg-purple-50 rounded-xl p-3 border border-purple-100">
@@ -150,11 +168,13 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           {summary.nextVesting ? (
             <>
               <p className="text-sm font-bold text-purple-700">{formatDate(summary.nextVesting.date)}</p>
-              <p className="text-xs text-purple-500">+{summary.nextVesting.sharesVested.toLocaleString('he-IL')} מניות</p>
-              {weightedPrice && (
-                <p className="text-xs font-semibold text-purple-700 mt-1">
-                  {fmtUSD(summary.nextVesting.sharesVested * weightedPrice)}
-                </p>
+              {weightedPrice ? (
+                <>
+                  <p className="text-xl font-bold text-purple-700 leading-tight">{fmtUSD(summary.nextVesting.sharesVested * weightedPrice)}</p>
+                  <p className="text-xs text-purple-500 mt-0.5">+{summary.nextVesting.sharesVested.toLocaleString('he-IL')} מניות</p>
+                </>
+              ) : (
+                <p className="text-xs text-purple-500">+{summary.nextVesting.sharesVested.toLocaleString('he-IL')} מניות</p>
               )}
             </>
           ) : (
