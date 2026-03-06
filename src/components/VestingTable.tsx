@@ -135,13 +135,15 @@ export default function VestingTable({ grants, tickerPrices = {} }: Props) {
                         >
                           <td
                             colSpan={colCount}
-                            className="py-1 px-4 text-xs font-semibold text-green-700 bg-green-50/60"
+                            className="py-1.5 px-4 text-xs font-semibold text-green-700 bg-green-50/80 border-b border-green-100"
                             style={multiTicker ? { borderLeft: `3px solid ${color}` } : {}}
                           >
-                            <span className="mr-1">{sections.vested ? '▾' : '▸'}</span>
-                            הבשיל ✓
-                            <span className="ml-2 font-normal opacity-70">
-                              ({vestedEvents.length} אירועים)
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="w-4 h-4 rounded flex items-center justify-center bg-green-200 text-green-800 font-bold leading-none">
+                                {sections.vested ? '−' : '+'}
+                              </span>
+                              הבשיל ✓
+                              <span className="font-normal opacity-60">({vestedEvents.length} אירועים)</span>
                             </span>
                           </td>
                         </tr>
@@ -167,13 +169,15 @@ export default function VestingTable({ grants, tickerPrices = {} }: Props) {
                         >
                           <td
                             colSpan={colCount}
-                            className="py-1 px-4 text-xs font-semibold text-orange-600 bg-orange-50/60"
+                            className="py-1.5 px-4 text-xs font-semibold text-orange-600 bg-orange-50/80 border-b border-orange-100"
                             style={multiTicker ? { borderLeft: `3px solid ${color}` } : {}}
                           >
-                            <span className="mr-1">{sections.unvested ? '▾' : '▸'}</span>
-                            עתידי
-                            <span className="ml-2 font-normal opacity-70">
-                              ({unvestedEvents.length} אירועים)
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="w-4 h-4 rounded flex items-center justify-center bg-orange-200 text-orange-800 font-bold leading-none">
+                                {sections.unvested ? '−' : '+'}
+                              </span>
+                              עתידי
+                              <span className="font-normal opacity-60">({unvestedEvents.length} אירועים)</span>
                             </span>
                           </td>
                         </tr>

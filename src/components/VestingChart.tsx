@@ -172,7 +172,10 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
               {tickerSummary.map(t => (
                 <p key={t.ticker} className="text-xs flex justify-between">
                   <span className="font-semibold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
-                  <span className="text-green-600">{t.vested.toLocaleString('he-IL')}</span>
+                  <span className="text-green-600">
+                    {t.vested.toLocaleString('he-IL')}
+                    <span className="opacity-50">/{t.total.toLocaleString('he-IL')}</span>
+                  </span>
                 </p>
               ))}
             </div>
@@ -200,7 +203,10 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
               {tickerSummary.map(t => (
                 <p key={t.ticker} className="text-xs flex justify-between">
                   <span className="font-semibold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
-                  <span className="text-orange-600">{t.unvested.toLocaleString('he-IL')}</span>
+                  <span className="text-orange-600">
+                    {t.unvested.toLocaleString('he-IL')}
+                    <span className="opacity-50">/{t.total.toLocaleString('he-IL')}</span>
+                  </span>
                 </p>
               ))}
             </div>
@@ -228,7 +234,10 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
               {tickerSummary.map(t => (
                 <p key={t.ticker} className="text-xs flex justify-between">
                   <span className="font-semibold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
-                  <span className="text-blue-600">{t.total.toLocaleString('he-IL')}</span>
+                  <span className="text-blue-600">
+                    {t.vested.toLocaleString('he-IL')}
+                    <span className="opacity-50">/{t.total.toLocaleString('he-IL')}</span>
+                  </span>
                 </p>
               ))}
             </div>
