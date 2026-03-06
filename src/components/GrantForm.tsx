@@ -11,7 +11,8 @@ const YEAR_VESTING_OPTIONS: { value: VestingType; label: string }[] = [
 ]
 
 interface Props {
-  onAdd: (grant: Grant) => void
+  initialValues?: Grant   // if provided → edit mode
+  onSave: (grant: Grant) => void
 }
 
 const defaultForm = {
@@ -26,22 +27,39 @@ const defaultForm = {
 function makeEqualPercentages(years: number): number[] {
   const base = parseFloat((100 / years).toFixed(2))
   const arr = Array(years).fill(base)
-  // Fix floating point: adjust last to ensure sum = 100
   const sum = parseFloat((base * years).toFixed(2))
   arr[years - 1] = parseFloat((arr[years - 1] + (100 - sum)).toFixed(2))
   return arr
 }
 
-export default function GrantForm({ onAdd }: Props) {
-  const [form, setForm] = useState(defaultForm)
+export default function GrantForm({ initialValues, onSave }: Props) {
+  const isEdit = !!initialValues
+
+  const [form, setForm] = useState(() =>
+    initialValues
+      ? {
+          ticker: initialValues.ticker,
+          grantDate: initialValues.grantDate,
+          grantPrice: String(initialValues.grantPrice),
+          totalShares: String(initialValues.totalShares),
+          durationMonths: String(initialValues.durationMonths),
+          vestingType: initialValues.vestingType,
+        }
+      : defaultForm
+  )
   const [error, setError] = useState('')
-  const [yearlyPct, setYearlyPct] = useState<number[]>([])
-  const [yearlyPctRaw, setYearlyPctRaw] = useState<string[]>([])
-  const [yearlyVType, setYearlyVType] = useState<VestingType[]>([])
+  const [yearlyPct, setYearlyPct] = useState<number[]>(
+    initialValues?.yearlyPercentages ?? []
+  )
+  const [yearlyPctRaw, setYearlyPctRaw] = useState<string[]>(
+    initialValues?.yearlyPercentages?.map(String) ?? []
+  )
+  const [yearlyVType, setYearlyVType] = useState<VestingType[]>(
+    initialValues?.yearlyVestingTypes ?? []
+  )
 
   const years = Math.max(1, Math.floor(parseInt(form.durationMonths) / 12) || 1)
 
-  // Rebuild yearlyPct and yearlyVType when years or vestingType changes
   useEffect(() => {
     if (form.vestingType === 'asymmetric') {
       setYearlyPct(prev => {
@@ -73,18 +91,10 @@ export default function GrantForm({ onAdd }: Props) {
   }
 
   function setPct(index: number, raw: string) {
-    setYearlyPctRaw(prev => {
-      const next = [...prev]
-      next[index] = raw
-      return next
-    })
+    setYearlyPctRaw(prev => { const next = [...prev]; next[index] = raw; return next })
     const num = parseFloat(raw)
     if (!isNaN(num)) {
-      setYearlyPct(prev => {
-        const next = [...prev]
-        next[index] = num
-        return next
-      })
+      setYearlyPct(prev => { const next = [...prev]; next[index] = num; return next })
     }
   }
 
@@ -108,8 +118,8 @@ export default function GrantForm({ onAdd }: Props) {
         return setError(`אחוזי ההבשלה חייבים לסכם ל-100% (כרגע: ${pctSumRounded}%)`)
     }
 
-    onAdd({
-      id: uuidv4(),
+    const saved: Grant = {
+      id: initialValues?.id ?? uuidv4(),
       ticker: form.ticker.trim().toUpperCase(),
       grantDate: form.grantDate,
       grantPrice,
@@ -118,11 +128,15 @@ export default function GrantForm({ onAdd }: Props) {
       vestingType: form.vestingType,
       yearlyPercentages: form.vestingType === 'asymmetric' ? [...yearlyPct] : undefined,
       yearlyVestingTypes: form.vestingType === 'asymmetric' ? [...yearlyVType] : undefined,
-    })
+    }
 
-    setForm(defaultForm)
-    setYearlyPct([])
-    setYearlyVType([])
+    onSave(saved)
+
+    if (!isEdit) {
+      setForm(defaultForm)
+      setYearlyPct([])
+      setYearlyVType([])
+    }
   }
 
   return (
@@ -238,9 +252,7 @@ export default function GrantForm({ onAdd }: Props) {
                     className="input flex-1 text-sm"
                     value={yearlyVType[i] ?? 'annual'}
                     onChange={e => setYearlyVType(prev => {
-                      const next = [...prev]
-                      next[i] = e.target.value as VestingType
-                      return next
+                      const next = [...prev]; next[i] = e.target.value as VestingType; return next
                     })}
                   >
                     {YEAR_VESTING_OPTIONS.map(o => (
@@ -273,7 +285,7 @@ export default function GrantForm({ onAdd }: Props) {
       )}
 
       <button type="submit" className="btn-primary w-full sm:w-auto">
-        + הוסף הענקה
+        {isEdit ? '💾 שמור שינויים' : '+ הוסף הענקה'}
       </button>
     </form>
   )

@@ -1,42 +1,56 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import type { Grant, SaleSimulationInput } from '../types'
-import { calculateTaxSummary, TAX_BRACKETS, YISUPH_THRESHOLD, CAPITAL_GAIN_RATE } from '../utils/taxCalculator'
+import {
+  calculateTaxSummary,
+  TAX_BRACKETS,
+  BL_BRACKETS,
+  YISUPH_THRESHOLD,
+  CAPITAL_GAIN_RATE,
+  calculateMarginalTax,
+  calculateMarginalBL,
+} from '../utils/taxCalculator'
 import { getVestingSummary, grantLabel } from '../utils/vestingCalculator'
-import { fetchStockPrice, fetchUsdIlsRate } from '../utils/stockPrice'
 
 interface Props {
   grants: Grant[]
+  tickerPrices?: Record<string, number>
+  initialUsdRate?: number
 }
 
 function fmt(n: number) {
   return n.toLocaleString('he-IL', { maximumFractionDigits: 0 })
 }
-
 function fmtCurrency(n: number) {
   return `₪${fmt(Math.round(n))}`
 }
-
 function fmtPct(n: number) {
-  return `${(n * 100).toFixed(0)}%`
+  return `${(n * 100).toFixed(1)}%`
 }
 
-export default function SaleSimulation({ grants }: Props) {
+export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRate = 3.7 }: Props) {
   const [annualIncome, setAnnualIncome] = useState('')
   const [currentPrice, setCurrentPrice] = useState('')
-  const [exchangeRate, setExchangeRate] = useState('3.7')
+  const [exchangeRate, setExchangeRate] = useState(String(initialUsdRate))
   const [saleInputs, setSaleInputs] = useState<Record<string, string>>({})
 
-  // Unique tickers from grants (non-empty)
+  // Update exchange rate when it arrives from sheet
+  useEffect(() => {
+    if (initialUsdRate && initialUsdRate !== 3.7) {
+      setExchangeRate(initialUsdRate.toFixed(3))
+    }
+  }, [initialUsdRate])
+
+  // Unique tickers from grants
   const uniqueTickers = [...new Set(grants.map(g => g.ticker).filter(Boolean))]
 
-  // Ticker fetch state — default to first unique ticker
-  const [ticker, setTicker] = useState(() => uniqueTickers[0] ?? '')
-  const [fetchState, setFetchState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
-  const [fetchError, setFetchError] = useState('')
-  const [fetchedTicker, setFetchedTicker] = useState('')
+  // Active ticker for the price field (first with a sheet price, else first ticker)
+  const [selectedTicker, setSelectedTicker] = useState(() => uniqueTickers[0] ?? '')
 
-  // Exchange rate fetch state
-  const [rateFetchState, setRateFetchState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  // When tickerPrices arrive or selectedTicker changes, auto-fill price
+  useEffect(() => {
+    const price = tickerPrices[selectedTicker]
+    if (price) setCurrentPrice(String(price))
+  }, [tickerPrices, selectedTicker])
 
   const parsedIncome = parseFloat(annualIncome) || 0
   const parsedPrice = parseFloat(currentPrice) || 0
@@ -48,7 +62,6 @@ export default function SaleSimulation({ grants }: Props) {
     sharesToSell: parseInt(saleInputs[g.id] || '0') || 0,
   }))
 
-  // Convert grant prices from $ to ₪ for tax calculation
   const grantsILS = grants.map(g => ({ ...g, grantPrice: g.grantPrice * parsedRate }))
 
   const hasAnySale = inputs.some(i => i.sharesToSell > 0)
@@ -61,73 +74,34 @@ export default function SaleSimulation({ grants }: Props) {
 
   // Current marginal bracket for display
   const currentBracket = TAX_BRACKETS.find(b => parsedIncome < b.max)
-
-  async function handleFetchRate() {
-    setRateFetchState('loading')
-    try {
-      const rate = await fetchUsdIlsRate()
-      setExchangeRate(rate.toFixed(3))
-      setRateFetchState('success')
-    } catch {
-      setRateFetchState('error')
-    }
-  }
-
-  async function handleFetchPrice() {
-    if (!ticker.trim()) return
-    setFetchState('loading')
-    setFetchError('')
-    try {
-      const price = await fetchStockPrice(ticker)
-      setCurrentPrice(String(price))
-      setFetchedTicker(ticker.trim().toUpperCase())
-      setFetchState('success')
-    } catch (err: any) {
-      setFetchError(err.message ?? 'שגיאה לא ידועה')
-      setFetchState('error')
-    }
-  }
+  const currentBLBracket = BL_BRACKETS.find(b => parsedIncome < b.max)
 
   return (
     <div className="space-y-6">
       {/* Global Inputs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* USD Rate — auto from sheet, no fetch button */}
         <div>
           <label className="label">שער דולר (₪/$)</label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              className="input"
-              placeholder="3.7"
-              min="0"
-              step="0.001"
-              value={exchangeRate}
-              onChange={e => { setExchangeRate(e.target.value); setRateFetchState('idle') }}
-            />
-            <button
-              type="button"
-              className="btn-primary whitespace-nowrap text-sm"
-              onClick={handleFetchRate}
-              disabled={rateFetchState === 'loading'}
-            >
-              {rateFetchState === 'loading' ? '⏳' : '🔄 עדכן'}
-            </button>
-          </div>
-          {rateFetchState === 'success' && (
-            <p className="text-xs text-green-600 mt-1">✅ שער עודכן: ₪{parsedRate.toFixed(3)}</p>
-          )}
-          {rateFetchState === 'error' && (
-            <p className="text-xs text-red-500 mt-1">❌ שגיאה בשליפת שער</p>
-          )}
-          {rateFetchState === 'idle' && parsedRate > 0 && parsedPrice > 0 && (
+          <input
+            type="number"
+            className="input"
+            placeholder="3.7"
+            min="0"
+            step="0.001"
+            value={exchangeRate}
+            onChange={e => setExchangeRate(e.target.value)}
+          />
+          {parsedRate > 0 && parsedPrice > 0 && (
             <p className="text-xs text-gray-500 mt-1">
               ${parsedPrice.toFixed(2)} = ₪{parsedPriceILS.toFixed(2)}
             </p>
           )}
         </div>
 
+        {/* Annual income */}
         <div>
-          <label className="label">הכנסה שנתית ממוצעת (₪)</label>
+          <label className="label">הכנסה שנתית (₪)</label>
           <input
             type="number"
             className="input"
@@ -136,104 +110,148 @@ export default function SaleSimulation({ grants }: Props) {
             value={annualIncome}
             onChange={e => setAnnualIncome(e.target.value)}
           />
-          {parsedIncome > 0 && currentBracket && (
+          {parsedIncome > 0 && (
             <p className="text-xs text-gray-500 mt-1">
-              מדרגת מס שולית: <span className="font-semibold text-gray-700">{fmtPct(currentBracket.rate)}</span>
+              מ"ה שולי: <span className="font-semibold text-gray-700">{currentBracket ? fmtPct(currentBracket.rate) : '—'}</span>
+              <span className="mr-2">ב"ל שולי: <span className="font-semibold text-gray-700">{currentBLBracket ? fmtPct(currentBLBracket.rate) : '—'}</span></span>
             </p>
           )}
         </div>
 
-        {/* Stock price + ticker fetch */}
+        {/* Stock price — auto from sheet */}
         <div>
-          <label className="label">מחיר מניה נוכחי ($)</label>
-
-          {/* Ticker chips from grants */}
-          <div className="flex gap-2 mb-2 flex-wrap">
+          <label className="label">מחיר מניה ($)</label>
+          <div className="flex gap-1 mb-2 flex-wrap">
             {uniqueTickers.map(t => (
               <button
                 key={t}
                 type="button"
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                  ticker === t
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                  selectedTicker === t
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
                 }`}
-                onClick={() => { setTicker(t); setFetchState('idle') }}
+                onClick={() => setSelectedTicker(t)}
               >
-                {t}
+                {t}{tickerPrices[t] ? ` $${tickerPrices[t].toFixed(2)}` : ''}
               </button>
             ))}
-            <button
-              type="button"
-              className="btn-primary whitespace-nowrap text-sm"
-              onClick={handleFetchPrice}
-              disabled={fetchState === 'loading' || !ticker.trim()}
-            >
-              {fetchState === 'loading' ? '⏳' : '🔍 שלוף'}
-            </button>
           </div>
-
-          {/* Manual price */}
           <input
             type="number"
             className="input"
-            placeholder="או הכנס ידנית: 150"
+            placeholder="150"
             min="0"
             step="0.01"
             value={currentPrice}
-            onChange={e => { setCurrentPrice(e.target.value); setFetchState('idle') }}
+            onChange={e => setCurrentPrice(e.target.value)}
           />
-
-          {/* Fetch status */}
-          {fetchState === 'success' && (
-            <p className="text-xs text-green-600 mt-1">
-              ✅ מחיר {fetchedTicker} עודכן: <strong>${parseFloat(currentPrice).toFixed(2)}</strong>
-              <span className="text-gray-400 mr-1">(Yahoo Finance)</span>
-            </p>
-          )}
-          {fetchState === 'error' && (
-            <p className="text-xs text-red-500 mt-1">❌ {fetchError}</p>
-          )}
         </div>
       </div>
 
-      {/* Tax Brackets Reference */}
+      {/* Tax brackets reference */}
       <details className="bg-gray-50 rounded-xl border border-gray-200">
         <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-600 select-none">
-          📊 מדרגות מס הכנסה ישראל 2025
+          📊 מדרגות מס — פרטים והסבר
         </summary>
-        <div className="px-4 pb-4">
-          <table className="w-full text-xs mt-2">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-right py-1.5 font-semibold text-gray-500">הכנסה שנתית</th>
-                <th className="text-left py-1.5 font-semibold text-gray-500">שיעור מס</th>
-              </tr>
-            </thead>
-            <tbody>
-              {TAX_BRACKETS.map((b, i) => {
-                const isActive = parsedIncome > b.min && parsedIncome <= b.max
+        <div className="px-4 pb-4 space-y-4">
+
+          {/* Income Tax Brackets */}
+          <div>
+            <p className="text-xs font-bold text-gray-700 mt-3 mb-1">מס הכנסה 2025</p>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-right py-1 font-semibold text-gray-500">הכנסה שנתית</th>
+                  <th className="text-left py-1 font-semibold text-gray-500">שיעור</th>
+                  {parsedIncome > 0 && <th className="text-left py-1 font-semibold text-gray-500">מצבך</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {TAX_BRACKETS.map((b, i) => {
+                  const isActive = parsedIncome > b.min && parsedIncome <= b.max
+                  return (
+                    <tr key={i} className={`border-b border-gray-100 ${isActive ? 'bg-blue-50 font-semibold' : ''}`}>
+                      <td className="py-1 text-right text-gray-700">
+                        {fmtCurrency(b.min)} – {b.max === Infinity ? '∞' : fmtCurrency(b.max)}
+                      </td>
+                      <td className="py-1 text-left font-medium text-gray-800">{fmtPct(b.rate)}</td>
+                      {parsedIncome > 0 && (
+                        <td className="py-1 text-left">
+                          {isActive && <span className="tag-blue">← שכרך כאן</span>}
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
+                <tr className="bg-yellow-50">
+                  <td className="py-1 text-right text-gray-700">מעל {fmtCurrency(YISUPH_THRESHOLD)} (ייסף)</td>
+                  <td className="py-1 text-left font-medium text-yellow-700">+3%</td>
+                  {parsedIncome > 0 && <td />}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Bituach Leumi Brackets */}
+          <div>
+            <p className="text-xs font-bold text-gray-700 mb-1">ביטוח לאומי + בריאות 2025 (עובד שכיר)</p>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-right py-1 font-semibold text-gray-500">הכנסה שנתית</th>
+                  <th className="text-left py-1 font-semibold text-gray-500">שיעור</th>
+                  <th className="text-left py-1 font-semibold text-gray-500">פירוט</th>
+                </tr>
+              </thead>
+              <tbody>
+                {BL_BRACKETS.map((b, i) => {
+                  const isActive = parsedIncome > b.min && parsedIncome <= b.max
+                  return (
+                    <tr key={i} className={`border-b border-gray-100 ${isActive ? 'bg-blue-50 font-semibold' : ''}`}>
+                      <td className="py-1 text-right text-gray-700">
+                        {fmtCurrency(b.min)} – {b.max === Infinity ? '∞' : fmtCurrency(b.max)}
+                      </td>
+                      <td className="py-1 text-left font-medium text-gray-800">{fmtPct(b.rate)}</td>
+                      <td className="py-1 text-left text-gray-500">{b.label}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* How tax is calculated */}
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-800 space-y-1">
+            <p className="font-bold">💡 איך מחשבים את המס?</p>
+            <p>המס מחושב <strong>מרגינלית</strong> — כל שקל הכנסה ממוסה לפי המדרגה שהוא נופל בה.</p>
+            <p>אם המכירה <strong>חוצה מדרגה</strong>, החלק שמתחת לסף ימוסה בשיעור הנמוך, החלק מעל — בשיעור הגבוה.</p>
+            <p><strong>פחות משנתיים:</strong> כל תמורת המכירה = הכנסת עבודה → מוסה לפי מדרגות מ"ה.</p>
+            <p><strong>מעל שנתיים (102 נאמן):</strong> עד מחיר ההענקה = הכנסה, מעליו = רווח הון (25%).</p>
+            <p><strong>ביטוח לאומי</strong> חל רק על חלק ה"הכנסה" (לא על רווח הון), עד תקרה שנתית של ₪588,360.</p>
+          </div>
+
+          {/* Live example */}
+          {parsedIncome > 0 && parsedPrice > 0 && !hasAnySale && (
+            <div className="bg-gray-100 rounded-lg p-3 text-xs text-gray-700">
+              <p className="font-semibold mb-1">דוגמה: מכירת 100 מניות</p>
+              {(() => {
+                const exampleGrant = grants[0]
+                if (!exampleGrant) return null
+                const proceeds = 100 * parsedPriceILS
+                const tax = calculateMarginalTax(parsedIncome, proceeds)
+                const bl = calculateMarginalBL(parsedIncome, proceeds)
                 return (
-                  <tr
-                    key={i}
-                    className={`border-b border-gray-100 ${isActive ? 'bg-blue-50 font-semibold' : ''}`}
-                  >
-                    <td className="py-1.5 text-right text-gray-700">
-                      {fmtCurrency(b.min)} – {b.max === Infinity ? '∞' : fmtCurrency(b.max)}
-                      {isActive && <span className="tag-blue mr-2">← ההכנסה שלך</span>}
-                    </td>
-                    <td className="py-1.5 text-left font-medium text-gray-800">{fmtPct(b.rate)}</td>
-                  </tr>
+                  <div className="space-y-0.5">
+                    <p>תמורה: {fmtCurrency(proceeds)}</p>
+                    <p>מ"ה שולי: {fmtCurrency(tax)} ({fmtPct(tax / proceeds)})</p>
+                    <p>ב"ל שולי: {fmtCurrency(bl)} ({fmtPct(bl / proceeds)})</p>
+                    <p className="font-semibold">נטו משוער: {fmtCurrency(proceeds - tax - bl)}</p>
+                  </div>
                 )
-              })}
-              <tr className="bg-yellow-50">
-                <td className="py-1.5 text-right text-gray-700">
-                  מעל {fmtCurrency(YISUPH_THRESHOLD)} (ייסף)
-                </td>
-                <td className="py-1.5 text-left font-medium text-yellow-700">+3%</td>
-              </tr>
-            </tbody>
-          </table>
+              })()}
+            </div>
+          )}
         </div>
       </details>
 
@@ -249,6 +267,7 @@ export default function SaleSimulation({ grants }: Props) {
           const isTwoYears = today >= twoYearsDate
           const maxSellable = vestSummary.vestedShares
           const bd = summary?.breakdowns.find(b => b.grantId === grant.id)
+          const livePrice = tickerPrices[grant.ticker]
 
           return (
             <div key={grant.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
@@ -257,7 +276,10 @@ export default function SaleSimulation({ grants }: Props) {
                 <div>
                   <h4 className="font-semibold text-gray-800">{grantLabel(grant)}</h4>
                   <p className="text-xs text-gray-500">
-                    מחיר הענקה: ${grant.grantPrice.toFixed(2)} | הבשילו: {fmt(vestSummary.vestedShares)} מניות
+                    מחיר הענקה: ${grant.grantPrice.toFixed(2)}
+                    {livePrice && <> | מחיר עכשיו: <strong className="text-blue-600">${livePrice.toFixed(2)}</strong></>}
+                    {' '}| הבשילו: {fmt(vestSummary.vestedShares)} מניות
+                    {livePrice && <> ({<strong>${(vestSummary.vestedShares * livePrice).toLocaleString('en-US', { maximumFractionDigits: 0 })}</strong>})</>}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -272,7 +294,7 @@ export default function SaleSimulation({ grants }: Props) {
               {/* Two-year status explanation */}
               <div className={`text-xs rounded-lg p-2.5 ${isTwoYears ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
                 {isTwoYears ? (
-                  <>✅ עברו שנתיים — חלק עד מחיר ההענקה (${grant.grantPrice.toFixed(2)}/מניה) ימוסה כהכנסה, הרווח מעל יחוייב ב-{fmtPct(CAPITAL_GAIN_RATE)} רווח הון</>
+                  <>✅ עברו שנתיים — עד ${grant.grantPrice.toFixed(2)}/מניה = הכנסה | מעל = רווח הון {fmtPct(CAPITAL_GAIN_RATE)}</>
                 ) : (
                   <>⚠️ לא עברו שנתיים — כל התמורה תמוסה כהכנסה רגילה לפי מדרגות המס</>
                 )}
@@ -282,7 +304,7 @@ export default function SaleSimulation({ grants }: Props) {
               <div className="flex items-end gap-3">
                 <div className="flex-1">
                   <label className="label">
-                    מספר מניות למכירה (מקסימום: {fmt(maxSellable)} שהבשילו)
+                    מניות למכירה (מקסימום: {fmt(maxSellable)})
                   </label>
                   <input
                     type="number"
@@ -294,43 +316,39 @@ export default function SaleSimulation({ grants }: Props) {
                     onChange={e => setSaleInputs(prev => ({ ...prev, [grant.id]: e.target.value }))}
                   />
                 </div>
-                <button
-                  type="button"
-                  className="btn-secondary text-xs py-2"
-                  onClick={() => setSaleInputs(prev => ({ ...prev, [grant.id]: String(maxSellable) }))}
-                >
+                <button type="button" className="btn-secondary text-xs py-2"
+                  onClick={() => setSaleInputs(prev => ({ ...prev, [grant.id]: String(maxSellable) }))}>
                   מקסימום
                 </button>
-                <button
-                  type="button"
-                  className="btn-secondary text-xs py-2"
-                  onClick={() => setSaleInputs(prev => ({ ...prev, [grant.id]: '' }))}
-                >
+                <button type="button" className="btn-secondary text-xs py-2"
+                  onClick={() => setSaleInputs(prev => ({ ...prev, [grant.id]: '' }))}>
                   נקה
                 </button>
               </div>
 
               {/* Tax breakdown for this grant */}
-              {bd && bd.sharesToSell > 0 && parsedPrice > 0 && parsedIncome >= 0 && (
+              {bd && bd.sharesToSell > 0 && parsedPrice > 0 && (
                 <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-sm border border-gray-100">
-                  <p className="font-semibold text-gray-700 text-xs uppercase tracking-wide">חישוב מס</p>
+                  <p className="font-semibold text-gray-700 text-xs uppercase tracking-wide">חישוב מס — הענקה זו</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                     <span className="text-gray-600">תמורה כוללת:</span>
                     <span className="font-semibold text-gray-800 text-left">{fmtCurrency(bd.saleProceeds)}</span>
 
                     {bd.isTwoYearsPassed ? (
                       <>
-                        <span className="text-gray-600">הכנסה רגילה ({bd.sharesToSell} × ${grant.grantPrice.toFixed(2)}):</span>
+                        <span className="text-gray-600">הכנסת עבודה ({bd.sharesToSell} × ${grant.grantPrice.toFixed(2)}):</span>
                         <span className="text-left">{fmtCurrency(bd.ordinaryIncome)}</span>
 
-                        <span className="text-gray-600">מס הכנסה על הכנסה רגילה:</span>
+                        <span className="text-gray-600">מס הכנסה על הכנסה:</span>
                         <span className="text-red-600 text-left">{fmtCurrency(bd.ordinaryTax)}</span>
+
+                        <span className="text-gray-600">ביטוח לאומי + בריאות:</span>
+                        <span className="text-red-600 text-left">{fmtCurrency(bd.bituachLeumi)}</span>
 
                         {bd.capitalGain > 0 && (
                           <>
                             <span className="text-gray-600">רווח הון ({fmtPct(CAPITAL_GAIN_RATE)}):</span>
                             <span className="text-left">{fmtCurrency(bd.capitalGain)}</span>
-
                             <span className="text-gray-600">מס רווח הון:</span>
                             <span className="text-red-600 text-left">{fmtCurrency(bd.capitalGainTax)}</span>
                           </>
@@ -338,30 +356,32 @@ export default function SaleSimulation({ grants }: Props) {
                       </>
                     ) : (
                       <>
-                        <span className="text-gray-600">הכנסה רגילה (כל התמורה):</span>
+                        <span className="text-gray-600">הכנסה רגילה:</span>
                         <span className="text-left">{fmtCurrency(bd.ordinaryIncome)}</span>
-
                         <span className="text-gray-600">מס הכנסה:</span>
                         <span className="text-red-600 text-left">{fmtCurrency(bd.ordinaryTax)}</span>
+                        <span className="text-gray-600">ביטוח לאומי + בריאות:</span>
+                        <span className="text-red-600 text-left">{fmtCurrency(bd.bituachLeumi)}</span>
                       </>
                     )}
 
-                    <span className="font-semibold text-gray-700 border-t border-gray-200 pt-1">סה"כ מס:</span>
-                    <span className="font-bold text-red-700 text-left border-t border-gray-200 pt-1">{fmtCurrency(bd.totalTax)}</span>
-
-                    <span className="font-semibold text-gray-700">רווח נקי לאחר מס:</span>
-                    <span className="font-bold text-green-700 text-left">{fmtCurrency(bd.netProfit)}</span>
-
-                    <span className="text-gray-500 text-xs">אפקטיבי:</span>
-                    <span className="text-gray-500 text-xs text-left">
-                      {bd.saleProceeds > 0 ? fmtPct(bd.totalTax / bd.saleProceeds) : '0%'}
+                    <span className="font-semibold text-gray-700 border-t border-gray-200 pt-1">סה"כ מס + ב"ל:</span>
+                    <span className="font-bold text-red-700 text-left border-t border-gray-200 pt-1">
+                      {fmtCurrency(bd.totalTax + bd.bituachLeumi)}
                     </span>
+
+                    <span className="font-semibold text-gray-700">שיעור אפקטיבי:</span>
+                    <span className="font-medium text-gray-600 text-left">
+                      {bd.saleProceeds > 0 ? fmtPct((bd.totalTax + bd.bituachLeumi) / bd.saleProceeds) : '0%'}
+                    </span>
+
+                    <span className="font-semibold text-gray-700">רווח נקי:</span>
+                    <span className="font-bold text-green-700 text-left">{fmtCurrency(bd.netProfit)}</span>
                   </div>
 
                   {bd.yisufhSubjectAmount > 0 && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-800">
-                      ⚠️ <strong>שים לב — מס ייסף (3%):</strong> {fmtCurrency(bd.yisufhSubjectAmount)} מהכנסתך עולה מעל
-                      סף הייסף ({fmtCurrency(YISUPH_THRESHOLD)}). עליך לשלם 3% נוסף = {fmtCurrency(bd.yisufhSubjectAmount * 0.03)} שקלים.
+                      ⚠️ <strong>מס ייסף (3%):</strong> {fmtCurrency(bd.yisufhSubjectAmount)} עולה מעל סף {fmtCurrency(YISUPH_THRESHOLD)} = {fmtCurrency(bd.yisufhSubjectAmount * 0.03)} נוספים.
                     </div>
                   )}
                 </div>
@@ -378,11 +398,11 @@ export default function SaleSimulation({ grants }: Props) {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl p-3 border border-blue-100">
-              <p className="text-xs text-gray-500 mb-1">תמורה כוללת ממכירה</p>
+              <p className="text-xs text-gray-500 mb-1">תמורה ממכירה</p>
               <p className="text-xl font-bold text-gray-800">{fmtCurrency(summary.totalSaleProceeds)}</p>
             </div>
             <div className="bg-white rounded-xl p-3 border border-blue-100">
-              <p className="text-xs text-gray-500 mb-1">מס הכנסה רגיל</p>
+              <p className="text-xs text-gray-500 mb-1">מס הכנסה</p>
               <p className="text-xl font-bold text-red-600">{fmtCurrency(summary.totalOrdinaryTax)}</p>
             </div>
             {summary.totalCapitalGainTax > 0 && (
@@ -391,33 +411,33 @@ export default function SaleSimulation({ grants }: Props) {
                 <p className="text-xl font-bold text-red-600">{fmtCurrency(summary.totalCapitalGainTax)}</p>
               </div>
             )}
+            <div className="bg-white rounded-xl p-3 border border-orange-100">
+              <p className="text-xs text-gray-500 mb-1">ביטוח לאומי + בריאות</p>
+              <p className="text-xl font-bold text-orange-600">{fmtCurrency(summary.totalBituachLeumi)}</p>
+            </div>
             <div className="bg-white rounded-xl p-3 border border-red-100">
-              <p className="text-xs text-gray-500 mb-1">סה"כ מס</p>
-              <p className="text-xl font-bold text-red-700">{fmtCurrency(summary.totalTax)}</p>
+              <p className="text-xs text-gray-500 mb-1">סה"כ ניכויים</p>
+              <p className="text-xl font-bold text-red-700">{fmtCurrency(summary.totalTax + summary.totalBituachLeumi)}</p>
               <p className="text-xs text-red-400">
                 {summary.totalSaleProceeds > 0
-                  ? fmtPct(summary.totalTax / summary.totalSaleProceeds) + ' מהתמורה'
+                  ? fmtPct((summary.totalTax + summary.totalBituachLeumi) / summary.totalSaleProceeds) + ' מהתמורה'
                   : ''}
               </p>
             </div>
             <div className="bg-white rounded-xl p-3 border border-green-100">
-              <p className="text-xs text-gray-500 mb-1">רווח נקי לאחר מס</p>
+              <p className="text-xs text-gray-500 mb-1">רווח נקי לאחר הכל</p>
               <p className="text-xl font-bold text-green-700">{fmtCurrency(summary.totalNetProfit)}</p>
             </div>
           </div>
 
           {summary.yisufhNote > 0 && (
             <div className="bg-yellow-50 border border-yellow-300 rounded-xl p-4 text-sm text-yellow-900">
-              <p className="font-bold mb-1">⚠️ מס ייסף (Surtax) — 3% נוסף</p>
+              <p className="font-bold mb-1">⚠️ מס ייסף — 3% נוסף</p>
               <p>
-                הכנסתך הכוללת לאחר המכירה ({fmtCurrency(summary.finalTaxableIncome)}) עולה מעל
-                סף הייסף ({fmtCurrency(YISUPH_THRESHOLD)}) ב-{fmtCurrency(summary.yisufhNote)}.
+                הכנסתך הכוללת ({fmtCurrency(summary.finalTaxableIncome)}) עולה מעל {fmtCurrency(YISUPH_THRESHOLD)} ב-{fmtCurrency(summary.yisufhNote)}.
               </p>
               <p className="mt-1 font-semibold">
-                עליך לשלם מס ייסף נוסף של {fmtCurrency(summary.yisufhNote * 0.03)} ₪ (3% × {fmtCurrency(summary.yisufhNote)}).
-              </p>
-              <p className="text-xs text-yellow-700 mt-1">
-                * מס הייסף לא נכלל בחישוב המס הכולל למעלה — יש להוסיפו בנפרד.
+                מס ייסף: {fmtCurrency(summary.yisufhNote * 0.03)} (לא כלול בסיכום — יש להוסיפו).
               </p>
             </div>
           )}
@@ -426,7 +446,7 @@ export default function SaleSimulation({ grants }: Props) {
 
       {!isValid && grants.length > 0 && (
         <p className="text-sm text-gray-400 text-center py-4">
-          הזן הכנסה שנתית, מחיר מניה נוכחי ומספר מניות למכירה כדי לראות את חישוב המס
+          הזן הכנסה שנתית ומספר מניות למכירה כדי לראות את חישוב המס
         </p>
       )}
     </div>

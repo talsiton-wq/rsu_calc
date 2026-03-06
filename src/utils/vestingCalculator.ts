@@ -158,6 +158,7 @@ export function calculateVestingSchedule(grant: Grant): VestingEvent[] {
 export interface MergedVestingEvent extends VestingEvent {
   grantId: string
   grantLabel: string
+  ticker: string
 }
 
 /**
@@ -172,7 +173,7 @@ export function mergeVestingSchedules(grants: Grant[]): MergedVestingEvent[] {
     const events = calculateVestingSchedule(grant)
     const label = grantLabel(grant)
     for (const e of events) {
-      raw.push({ ...e, grantId: grant.id, grantLabel: label })
+      raw.push({ ...e, grantId: grant.id, grantLabel: label, ticker: grant.ticker })
     }
   }
 
