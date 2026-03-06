@@ -77,6 +77,16 @@ export default function App() {
     setGrants(prev => prev.filter(g => g.id !== id))
   }
 
+  function handleSold(grantId: string, eventDate: string, sold: number) {
+    setGrants(prev => prev.map(g => {
+      if (g.id !== grantId) return g
+      const soldEvents = { ...(g.soldEvents ?? {}), [eventDate]: sold }
+      // If 0, remove the key to keep things clean
+      if (sold === 0) delete soldEvents[eventDate]
+      return { ...g, soldEvents }
+    }))
+  }
+
   const fmtUSD = (n: number) =>
     '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 })
 
@@ -179,14 +189,14 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-left hidden sm:block">
-                          <p className="text-xs text-gray-500">הבשילו / סה"כ</p>
+                          <p className="text-xs text-gray-500">ביד / הבשיל / סה"כ</p>
                           <p className="text-sm font-semibold text-gray-700">
-                            {summary.vestedShares.toLocaleString('he-IL')} / {grant.totalShares.toLocaleString('he-IL')}
+                            {summary.vestedShares.toLocaleString('he-IL')} / {summary.grossVested.toLocaleString('he-IL')} / {grant.totalShares.toLocaleString('he-IL')}
                           </p>
                           {livePrice && (
                             <p className="text-xs mt-0.5">
-                              <span className="text-green-700 font-medium">{fmtUSD(summary.vestedShares * livePrice)} הבשיל</span>
-                              <span className="text-orange-500 mr-1"> / {fmtUSD(summary.unvestedShares * livePrice)} נותר</span>
+                              <span className="text-green-700 font-medium">{fmtUSD(summary.vestedShares * livePrice)} ביד</span>
+                              <span className="text-orange-500 mr-1"> / {fmtUSD(summary.unvestedShares * livePrice)} עתידי</span>
                             </p>
                           )}
                         </div>
@@ -213,9 +223,12 @@ export default function App() {
                         {livePrice && (
                           <div className="grid grid-cols-3 gap-2 text-xs">
                             <div className="bg-green-50 border border-green-100 rounded-lg p-2">
-                              <p className="text-green-600">שווי הבשיל</p>
+                              <p className="text-green-600">ביד (זמין)</p>
                               <p className="font-bold text-green-700 text-sm">{fmtUSD(summary.vestedShares * livePrice)}</p>
                               <p className="text-green-500 mt-0.5">{summary.vestedShares.toLocaleString('he-IL')} מניות</p>
+                              {summary.totalSold > 0 && (
+                                <p className="text-red-400 mt-0.5 text-xs">{summary.totalSold.toLocaleString('he-IL')} נמכרו</p>
+                              )}
                             </div>
                             <div className="bg-orange-50 border border-orange-100 rounded-lg p-2">
                               <p className="text-orange-600">שווי נותר</p>
@@ -297,7 +310,7 @@ export default function App() {
                   </span>
                 )}
               </div>
-              <VestingTable grants={grants} tickerPrices={tickerPrices} />
+              <VestingTable grants={grants} tickerPrices={tickerPrices} onSold={handleSold} />
             </section>
           </div>
         )}
