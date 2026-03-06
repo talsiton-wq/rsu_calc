@@ -269,7 +269,7 @@ function EventRow({ event, price, hasPrice, borderColor, sold = 0, onSold }: Eve
               className="w-16 text-xs border border-gray-300 rounded px-1.5 py-0.5 text-center focus:border-blue-400 focus:outline-none"
             />
             <span className={`text-xs font-semibold ${inHand > 0 ? 'text-green-700' : 'text-gray-400'}`}>
-              ביד: {inHand.toLocaleString('he-IL')}
+              זמין: {inHand.toLocaleString('he-IL')}
             </span>
           </div>
         )}

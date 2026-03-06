@@ -320,7 +320,7 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                     <span className="font-medium">{fmt(vestSummary.grossVested)} הבשילו</span>
                     {vestSummary.totalSold > 0 && (
                       <> · <span className="text-red-500">{fmt(vestSummary.totalSold)} נמכרו</span>
-                      · <span className="font-semibold text-green-700">{fmt(vestSummary.vestedShares)} ביד</span></>
+                      · <span className="font-semibold text-green-700">{fmt(vestSummary.vestedShares)} זמין</span></>
                     )}
                     {' | '}מחיר הענקה: ${grant.grantPrice.toFixed(2)}
                     {livePrice && <> | עכשיו: <strong className="text-blue-600">${livePrice.toFixed(2)}</strong></>}
@@ -348,7 +348,7 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
               <div className="flex items-end gap-3">
                 <div className="flex-1">
                   <label className="label">
-                    מניות למכירה (ביד: {maxSellable.toLocaleString('he-IL')})
+                    מניות למכירה (זמין: {maxSellable.toLocaleString('he-IL')})
                   </label>
                   <input
                     type="number"
