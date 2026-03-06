@@ -77,6 +77,35 @@ export default function App() {
     setGrants(prev => prev.filter(g => g.id !== id))
   }
 
+  function handleExport() {
+    const json = JSON.stringify(grants, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `rsu-grants-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string)
+        if (!Array.isArray(parsed)) throw new Error('invalid')
+        setGrants(parsed)
+      } catch {
+        alert('קובץ לא תקין')
+      }
+    }
+    reader.readAsText(file)
+    // Reset input so same file can be re-imported
+    e.target.value = ''
+  }
+
   function handleSold(grantId: string, eventDate: string, sold: number) {
     setGrants(prev => prev.map(g => {
       if (g.id !== grantId) return g
@@ -129,6 +158,15 @@ export default function App() {
               {pricesStatus === 'ok' && (
                 <span className="text-xs text-green-600">✅ מחירים עדכניים</span>
               )}
+              {grants.length > 0 && (
+                <button className="btn-secondary text-xs" onClick={handleExport} title="ייצא לקובץ JSON">
+                  ⬇ ייצא
+                </button>
+              )}
+              <label className="btn-secondary text-xs cursor-pointer" title="ייבא מקובץ JSON">
+                ⬆ ייבא
+                <input type="file" accept=".json,application/json" className="hidden" onChange={handleImport} />
+              </label>
               <button
                 className="btn-primary text-sm"
                 onClick={() => { setShowForm(f => !f); setEditingGrant(null) }}
