@@ -70,6 +70,8 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
   const totalGrossVested = tickerSummary.reduce((s, t) => s + t.grossVested, 0)
   const totalSoldAll = tickerSummary.reduce((s, t) => s + t.sold, 0)
   const totalAvailable = totalGrossVested - totalSoldAll
+  // Potential shares = available + unvested — computed from tickerSummary so it matches per-ticker rows
+  const totalPotentialShares = tickerSummary.reduce((s, t) => s + t.available + t.unvested, 0)
   const uniqueTickers = tickerSummary.map(t => t.ticker)
   const multiTicker = uniqueTickers.length > 1
 
@@ -235,9 +237,9 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           {/* פוטנציאל — big */}
           <p className="text-xs text-blue-600 font-semibold">פוטנציאל</p>
           <p className="text-2xl font-bold text-blue-800 leading-tight">
-            {hasAnyPrice ? fmtUSD(availableValue + unvestedValue) : (totalAvailable + summary.unvestedShares).toLocaleString('he-IL')}
+            {hasAnyPrice ? fmtUSD(availableValue + unvestedValue) : totalPotentialShares.toLocaleString('he-IL')}
           </p>
-          <p className="text-xs text-blue-600 mt-0.5">({(totalAvailable + summary.unvestedShares).toLocaleString('he-IL')} מניות)</p>
+          <p className="text-xs text-blue-600 mt-0.5">({totalPotentialShares.toLocaleString('he-IL')} מניות)</p>
           {/* Per-ticker */}
           {multiTicker && (
             <div className="mt-2 pt-1.5 border-t border-blue-200 space-y-2">
