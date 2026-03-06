@@ -241,11 +241,7 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
                 <p key={t.ticker} className="text-xs flex justify-between items-center gap-1">
                   <span className="font-semibold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
                   <span className="text-blue-600 text-right">
-                    {t.vested.toLocaleString('he-IL')}
-                    <span className="opacity-50">/{t.total.toLocaleString('he-IL')}</span>
-                    <span className="ml-1 text-blue-500 opacity-70">
-                      ({t.total > 0 ? ((t.vested / t.total) * 100).toFixed(0) : 0}%)
-                    </span>
+                    {t.total.toLocaleString('he-IL')}
                   </span>
                 </p>
               ))}
