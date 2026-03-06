@@ -126,7 +126,7 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           {hasAnyPrice && vestedValue > 0 ? (
             <>
               <p className="text-2xl font-bold text-green-700 leading-tight">{fmtUSD(vestedValue)}</p>
-              <p className="text-xs text-green-500 mt-0.5">{summary.vestedShares.toLocaleString('he-IL')} מניות · {summary.vestedPercent.toFixed(1)}% מהסך הכל</p>
+              <p className="text-xs text-green-500 mt-0.5"><span className="text-sm font-semibold text-green-600">{summary.vestedShares.toLocaleString('he-IL')}</span> מניות · {summary.vestedPercent.toFixed(1)}% מהסך הכל</p>
             </>
           ) : (
             <>
@@ -140,7 +140,7 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           {hasAnyPrice && unvestedValue > 0 ? (
             <>
               <p className="text-2xl font-bold text-orange-700 leading-tight">{fmtUSD(unvestedValue)}</p>
-              <p className="text-xs text-orange-500 mt-0.5">{summary.unvestedShares.toLocaleString('he-IL')} מניות · {(100 - summary.vestedPercent).toFixed(1)}% מהסך הכל</p>
+              <p className="text-xs text-orange-500 mt-0.5"><span className="text-sm font-semibold text-orange-600">{summary.unvestedShares.toLocaleString('he-IL')}</span> מניות · {(100 - summary.vestedPercent).toFixed(1)}% מהסך הכל</p>
             </>
           ) : (
             <>
@@ -154,7 +154,7 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           {hasAnyPrice && (vestedValue + unvestedValue) > 0 ? (
             <>
               <p className="text-2xl font-bold text-blue-700 leading-tight">{fmtUSD(vestedValue + unvestedValue)}</p>
-              <p className="text-xs text-blue-500 mt-0.5">{summary.totalShares.toLocaleString('he-IL')} מניות · {grants.length} הענקות</p>
+              <p className="text-xs text-blue-500 mt-0.5"><span className="text-sm font-semibold text-blue-600">{summary.totalShares.toLocaleString('he-IL')}</span> מניות · {grants.length} הענקות</p>
             </>
           ) : (
             <>
@@ -171,7 +171,7 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
               {weightedPrice ? (
                 <>
                   <p className="text-xl font-bold text-purple-700 leading-tight">{fmtUSD(summary.nextVesting.sharesVested * weightedPrice)}</p>
-                  <p className="text-xs text-purple-500 mt-0.5">+{summary.nextVesting.sharesVested.toLocaleString('he-IL')} מניות</p>
+                  <p className="text-xs text-purple-500 mt-0.5">+<span className="text-sm font-semibold text-purple-600">{summary.nextVesting.sharesVested.toLocaleString('he-IL')}</span> מניות</p>
                 </>
               ) : (
                 <p className="text-xs text-purple-500">+{summary.nextVesting.sharesVested.toLocaleString('he-IL')} מניות</p>
