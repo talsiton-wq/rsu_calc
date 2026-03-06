@@ -365,7 +365,11 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                     min="0"
                     max={maxSellable}
                     value={saleInputs[grant.id] || ''}
-                    onChange={e => setSaleInputs(prev => ({ ...prev, [grant.id]: e.target.value }))}
+                    onChange={e => {
+                      const v = parseInt(e.target.value) || 0
+                      const clamped = Math.min(Math.max(v, 0), maxSellable)
+                      setSaleInputs(prev => ({ ...prev, [grant.id]: clamped === 0 ? '' : String(clamped) }))
+                    }}
                   />
                 </div>
                 <button type="button" className="btn-secondary text-xs py-2"
@@ -425,7 +429,9 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                       </>
                     ) : (
                       <>
-                        <span className="text-gray-600">הכנסה רגילה:</span>
+                        <span className="text-gray-600">
+                          הכנסה רגילה ({bd.sharesToSell} × ${effectivePriceUSD(grant.ticker).toFixed(2)}):
+                        </span>
                         <span className="text-left">
                           {fmtCurrency(bd.ordinaryIncome)}<span className="text-xs text-gray-400">{fmtUSD(bd.ordinaryIncome, parsedRate)}</span>
                         </span>
