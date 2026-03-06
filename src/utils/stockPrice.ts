@@ -20,11 +20,31 @@ function csvCell(raw = ''): string {
  *
  * Routes through allorigins.win proxy to avoid CORS issues.
  */
+async function fetchCsvText(): Promise<string> {
+  // 1. Direct fetch — works if the sheet is public (Google Sheets supports CORS)
+  try {
+    const res = await fetch(SHEETS_CSV_URL, { cache: 'no-store' })
+    if (res.ok) return res.text()
+  } catch { /* CORS blocked — fall through */ }
+
+  // 2. corsproxy.io
+  try {
+    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(SHEETS_CSV_URL)}`, { cache: 'no-store' })
+    if (res.ok) return res.text()
+  } catch { /* fall through */ }
+
+  // 3. allorigins /get (returns JSON wrapper, avoids timeout issues of /raw)
+  const aoRes = await fetch(
+    `https://api.allorigins.win/get?url=${encodeURIComponent(SHEETS_CSV_URL)}`,
+    { cache: 'no-store' }
+  )
+  if (!aoRes.ok) throw new Error(`כל הנתיבים נכשלו (${aoRes.status})`)
+  const json = await aoRes.json()
+  return json.contents as string
+}
+
 export async function fetchGoogleSheetsData(): Promise<SheetsData> {
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(SHEETS_CSV_URL)}`
-  const res = await fetch(proxyUrl, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`Sheets fetch failed: ${res.status}`)
-  const text = await res.text()
+  const text = await fetchCsvText()
   const rows = text.split('\n').map(r => r.split(',').map(csvCell))
 
   // USD rate is in C2 → rows[1][2]
