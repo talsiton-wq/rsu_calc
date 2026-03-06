@@ -226,16 +226,16 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
           )}
         </div>
 
-        {/* Total — consistent pattern: סה"כ small, פוטנציאל big */}
+        {/* Total — סה"כ הוענק small, סה"כ נוכחי big */}
         <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-          {/* סה"כ — small */}
-          <p className="text-xs text-blue-500 font-medium">סה"כ</p>
+          {/* סה"כ הוענק — small */}
+          <p className="text-xs text-blue-500 font-medium">סה"כ הוענק</p>
           <p className="text-sm font-semibold text-blue-600">
             {hasAnyPrice ? fmtUSD(vestedValue + unvestedValue) : summary.totalShares.toLocaleString('he-IL')}
           </p>
           <p className="text-xs text-blue-400 mb-2">({summary.totalShares.toLocaleString('he-IL')} מניות)</p>
-          {/* פוטנציאל — big */}
-          <p className="text-xs text-blue-600 font-semibold">פוטנציאל</p>
+          {/* סה"כ נוכחי — big */}
+          <p className="text-xs text-blue-600 font-semibold">סה"כ נוכחי</p>
           <p className="text-2xl font-bold text-blue-800 leading-tight">
             {hasAnyPrice ? fmtUSD(availableValue + unvestedValue) : totalPotentialShares.toLocaleString('he-IL')}
           </p>
@@ -247,8 +247,8 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
                 <div key={t.ticker}>
                   <span className="text-xs font-bold" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
                   <div className="text-right">
-                    <p className="text-xs text-blue-400">סה"כ: {t.price != null ? fmtUSD(t.total * t.price) : t.total.toLocaleString('he-IL')} ({t.total.toLocaleString('he-IL')} מניות)</p>
-                    <p className="text-sm font-bold text-blue-800">פוטנציאל: {t.price != null ? fmtUSD((t.available + t.unvested) * t.price) : (t.available + t.unvested).toLocaleString('he-IL')} ({(t.available + t.unvested).toLocaleString('he-IL')} מניות)</p>
+                    <p className="text-xs text-blue-400">סה"כ הוענק: {t.price != null ? fmtUSD(t.total * t.price) : t.total.toLocaleString('he-IL')} ({t.total.toLocaleString('he-IL')} מניות)</p>
+                    <p className="text-sm font-bold text-blue-800">סה"כ נוכחי: {t.price != null ? fmtUSD((t.available + t.unvested) * t.price) : (t.available + t.unvested).toLocaleString('he-IL')} ({(t.available + t.unvested).toLocaleString('he-IL')} מניות)</p>
                   </div>
                 </div>
               ))}
