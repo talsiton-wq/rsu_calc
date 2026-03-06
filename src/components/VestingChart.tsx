@@ -175,16 +175,14 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* Vested */}
         <div className="bg-green-50 rounded-xl p-3 border border-green-100">
-          <p className="text-xs text-green-500 font-medium mb-0.5">
-            הבשילו: {hasAnyPrice && vestedValue > 0 ? fmtUSD(vestedValue) : `${totalGrossVested.toLocaleString('he-IL')} מניות`}
-            <span className="opacity-60 mr-1"> · {summary.vestedPercent.toFixed(1)}%</span>
+          <p className="text-sm font-semibold text-green-600 mb-0.5">
+            הבשילו: {hasAnyPrice && vestedValue > 0 ? fmtUSD(vestedValue) : totalGrossVested.toLocaleString('he-IL')}
+            <span className="text-xs font-normal opacity-60 mr-1"> · {summary.vestedPercent.toFixed(1)}%</span>
           </p>
           {hasAnyPrice && availableValue > 0 ? (
             <>
               <p className="text-2xl font-bold text-green-800 leading-tight">{fmtUSD(availableValue)}</p>
-              <p className="text-xs text-green-600 mt-0.5 font-semibold">
-                {totalAvailable.toLocaleString('he-IL')} מניות זמין
-              </p>
+              <p className="text-xs text-green-600 mt-0.5 font-semibold">{totalAvailable.toLocaleString('he-IL')} מניות זמין</p>
             </>
           ) : (
             <>
@@ -193,16 +191,15 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
             </>
           )}
           {multiTicker && (
-            <div className="mt-1.5 pt-1.5 border-t border-green-200 space-y-1">
+            <div className="mt-1.5 pt-1.5 border-t border-green-200 space-y-1.5">
               {tickerSummary.map(t => (
                 <div key={t.ticker} className="flex justify-between items-start gap-1">
                   <span className="text-xs font-bold shrink-0" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
                   <span className="text-right">
-                    {t.price != null && <span className="text-xs font-semibold text-green-800 block">{fmtUSD(t.available * t.price)} זמין</span>}
-                    <span className="text-xs text-green-500 opacity-70">
-                      {t.available.toLocaleString('he-IL')}<span className="opacity-60">/{t.grossVested.toLocaleString('he-IL')}</span>
-                      {' '}({t.total > 0 ? ((t.grossVested / t.total) * 100).toFixed(0) : 0}%)
-                    </span>
+                    {t.price != null && <span className="text-sm font-bold text-green-800 block">{fmtUSD(t.available * t.price)} זמין</span>}
+                    <span className="text-xs text-green-600 font-semibold">{t.available.toLocaleString('he-IL')} זמין</span>
+                    <span className="text-xs text-green-500 block">הבשילו: {t.price != null ? fmtUSD(t.grossVested * t.price) + ' · ' : ''}{t.grossVested.toLocaleString('he-IL')}</span>
+                    <span className="text-xs text-green-400 opacity-70 block">סה"כ: {t.total.toLocaleString('he-IL')}</span>
                   </span>
                 </div>
               ))}
@@ -246,28 +243,29 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
 
         {/* Total */}
         <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-          <p className="text-xs text-blue-600 font-medium mb-0.5">סך הכל זמין</p>
-          {hasAnyPrice && availableValue > 0 ? (
+          <p className="text-xs text-blue-600 font-medium mb-0.5">סך הכל פוטנציאל</p>
+          {hasAnyPrice && (availableValue + unvestedValue) > 0 ? (
             <>
-              <p className="text-2xl font-bold text-blue-700 leading-tight">{fmtUSD(availableValue)}</p>
-              <p className="text-xs text-blue-400 mt-0.5">
-                לפני מכירות: <span className="font-semibold text-blue-500">{summary.totalShares.toLocaleString('he-IL')}</span> מניות · {grants.length} הענקות
-              </p>
+              <p className="text-2xl font-bold text-blue-700 leading-tight">{fmtUSD(availableValue + unvestedValue)}</p>
+              <p className="text-xs text-blue-500 mt-0.5 font-semibold">{(totalAvailable + summary.unvestedShares).toLocaleString('he-IL')} מניות</p>
+              <p className="text-xs text-blue-400 mt-0.5">סה"כ: {fmtUSD(vestedValue + unvestedValue)} · {summary.totalShares.toLocaleString('he-IL')}</p>
             </>
           ) : (
             <>
-              <p className="text-2xl font-bold text-blue-700">{totalAvailable.toLocaleString('he-IL')}</p>
-              <p className="text-xs text-blue-500">לפני מכירות: {summary.totalShares.toLocaleString('he-IL')} · {grants.length} הענקות</p>
+              <p className="text-2xl font-bold text-blue-700">{(totalAvailable + summary.unvestedShares).toLocaleString('he-IL')}</p>
+              <p className="text-xs text-blue-500">סה"כ: {summary.totalShares.toLocaleString('he-IL')} · {grants.length} הענקות</p>
             </>
           )}
           {multiTicker && (
-            <div className="mt-1.5 pt-1.5 border-t border-blue-200 space-y-1">
+            <div className="mt-1.5 pt-1.5 border-t border-blue-200 space-y-1.5">
               {tickerSummary.map(t => (
                 <div key={t.ticker} className="flex justify-between items-start gap-1">
                   <span className="text-xs font-bold shrink-0" style={{ color: tickerColors[t.ticker] }}>{t.ticker}</span>
                   <span className="text-right">
-                    {t.price != null && <span className="text-xs font-semibold text-blue-700 block">{fmtUSD(t.total * t.price)}</span>}
-                    <span className="text-xs text-blue-600 opacity-70">{t.total.toLocaleString('he-IL')} מניות</span>
+                    {t.price != null && <span className="text-sm font-bold text-blue-700 block">{fmtUSD(t.available * t.price)} זמין</span>}
+                    <span className="text-xs text-blue-600 font-semibold">{t.available.toLocaleString('he-IL')} זמין</span>
+                    <span className="text-xs text-blue-400 block">הבשילו: {t.grossVested.toLocaleString('he-IL')}</span>
+                    <span className="text-xs text-blue-300 opacity-80 block">סה"כ: {t.total.toLocaleString('he-IL')}</span>
                   </span>
                 </div>
               ))}
