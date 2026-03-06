@@ -290,13 +290,13 @@ function EventRow({ event, price, hasPrice, borderColor, sold = 0, onSold }: Eve
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
-              dir="ltr"
               value={inputVal}
               placeholder="0"
               onChange={e => setInputVal(e.target.value.replace(/[^\d]/g, ''))}
               onBlur={() => commit(inputVal)}
               onKeyDown={e => e.key === 'Enter' && (e.currentTarget.blur(), commit(inputVal))}
-              className="w-16 text-xs border border-gray-300 rounded px-1.5 py-0.5 text-center focus:border-blue-400 focus:outline-none"
+              style={{ direction: 'ltr', textAlign: 'left' }}
+              className="w-16 text-xs border border-gray-300 rounded px-1.5 py-0.5 focus:border-blue-400 focus:outline-none"
             />
             <span className={`text-sm font-bold px-1.5 py-0.5 rounded transition-colors ${
               justSaved
