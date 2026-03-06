@@ -152,12 +152,13 @@ export function calculateGrantTax(
 }
 
 /**
- * Calculate full tax summary for all grants being sold
+ * Calculate full tax summary for all grants being sold.
+ * currentPrices: map of grantId → current price in NIS (each grant uses its own ticker price)
  */
 export function calculateTaxSummary(
   grants: Grant[],
   saleInputs: SaleSimulationInput[],
-  currentPrice: number,
+  currentPrices: Record<string, number>,
   annualIncome: number
 ): TaxSummary {
   const breakdowns: TaxBreakdown[] = []
@@ -168,6 +169,7 @@ export function calculateTaxSummary(
     const grant = grants.find(g => g.id === input.grantId)
     if (!grant) continue
 
+    const currentPrice = currentPrices[grant.id] ?? 0
     const breakdown = calculateGrantTax(grant, input.sharesToSell, currentPrice, runningIncome)
     breakdowns.push(breakdown)
 

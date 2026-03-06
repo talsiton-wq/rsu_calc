@@ -55,9 +55,10 @@ function getBLDetails(baseIncome: number, additionalIncome: number) {
 
 export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRate = 3.7 }: Props) {
   const [annualIncome, setAnnualIncome] = useState('')
-  const [currentPrice, setCurrentPrice] = useState('')
   const [exchangeRate, setExchangeRate] = useState(String(initialUsdRate))
   const [saleInputs, setSaleInputs] = useState<Record<string, string>>({})
+  // Per-ticker price overrides — user can override the live price per ticker
+  const [tickerPriceOverrides, setTickerPriceOverrides] = useState<Record<string, string>>({})
 
   // Update exchange rate when it arrives from sheet
   useEffect(() => {
@@ -69,19 +70,15 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
   // Unique tickers from grants
   const uniqueTickers = [...new Set(grants.map(g => g.ticker).filter(Boolean))]
 
-  // Active ticker for the price field (first with a sheet price, else first ticker)
-  const [selectedTicker, setSelectedTicker] = useState(() => uniqueTickers[0] ?? '')
-
-  // When tickerPrices arrive or selectedTicker changes, auto-fill price
-  useEffect(() => {
-    const price = tickerPrices[selectedTicker]
-    if (price) setCurrentPrice(String(price))
-  }, [tickerPrices, selectedTicker])
-
   const parsedIncome = parseFloat(annualIncome) || 0
-  const parsedPrice = parseFloat(currentPrice) || 0
   const parsedRate = parseFloat(exchangeRate) || 3.7
-  const parsedPriceILS = parsedPrice * parsedRate
+
+  // Effective price per ticker: user override → live price from sheet → 0
+  function effectivePriceUSD(ticker: string): number {
+    const override = parseFloat(tickerPriceOverrides[ticker])
+    if (override > 0) return override
+    return tickerPrices[ticker] || 0
+  }
 
   const inputs: SaleSimulationInput[] = grants.map(g => ({
     grantId: g.id,
@@ -90,13 +87,26 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
 
   const grantsILS = grants.map(g => ({ ...g, grantPrice: g.grantPrice * parsedRate }))
 
+  // Per-grant current price in NIS — each grant uses its own ticker's price
+  const grantCurrentPricesNIS = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const g of grantsILS) {
+      map[g.id] = effectivePriceUSD(g.ticker) * parsedRate
+    }
+    return map
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grantsILS, tickerPrices, tickerPriceOverrides, parsedRate])
+
   const hasAnySale = inputs.some(i => i.sharesToSell > 0)
-  const isValid = parsedIncome >= 0 && parsedPrice > 0 && hasAnySale
+  const hasAllPrices = grants
+    .filter(g => inputs.find(i => i.grantId === g.id && i.sharesToSell > 0))
+    .every(g => effectivePriceUSD(g.ticker) > 0)
+  const isValid = parsedIncome >= 0 && hasAllPrices && hasAnySale
 
   const summary = useMemo(() => {
     if (!isValid) return null
-    return calculateTaxSummary(grantsILS, inputs, parsedPriceILS, parsedIncome)
-  }, [grantsILS, inputs, parsedPriceILS, parsedIncome, isValid])
+    return calculateTaxSummary(grantsILS, inputs, grantCurrentPricesNIS, parsedIncome)
+  }, [grantsILS, inputs, grantCurrentPricesNIS, parsedIncome, isValid])
 
   // Current marginal bracket for display
   const currentBracket = TAX_BRACKETS.find(b => parsedIncome < b.max)
@@ -118,9 +128,11 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
             value={exchangeRate}
             onChange={e => setExchangeRate(e.target.value)}
           />
-          {parsedRate > 0 && parsedPrice > 0 && (
+          {parsedRate > 0 && uniqueTickers.some(t => effectivePriceUSD(t) > 0) && (
             <p className="text-xs text-gray-500 mt-1">
-              ${parsedPrice.toFixed(2)} = ₪{parsedPriceILS.toFixed(2)}
+              {uniqueTickers.filter(t => effectivePriceUSD(t) > 0).map(t =>
+                `${t}: $${effectivePriceUSD(t).toFixed(2)} = ₪${(effectivePriceUSD(t) * parsedRate).toFixed(2)}`
+              ).join(' | ')}
             </p>
           )}
         </div>
@@ -144,34 +156,32 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
           )}
         </div>
 
-        {/* Stock price — auto from sheet */}
+        {/* Per-ticker prices — auto from sheet, optional override */}
         <div>
-          <label className="label">מחיר מניה ($)</label>
-          <div className="flex gap-1 mb-2 flex-wrap">
-            {uniqueTickers.map(t => (
-              <button
-                key={t}
-                type="button"
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                  selectedTicker === t
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
-                }`}
-                onClick={() => setSelectedTicker(t)}
-              >
-                {t}{tickerPrices[t] ? ` $${tickerPrices[t].toFixed(2)}` : ''}
-              </button>
-            ))}
+          <label className="label">מחיר מניה ($) — לפי טיקר</label>
+          <div className="space-y-2">
+            {uniqueTickers.map(t => {
+              const livePrice = tickerPrices[t]
+              const override = tickerPriceOverrides[t] || ''
+              return (
+                <div key={t} className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-gray-600 w-14 shrink-0">{t}</span>
+                  <input
+                    type="number"
+                    className="input py-1.5 text-sm"
+                    placeholder={livePrice ? `${livePrice.toFixed(2)}` : '0'}
+                    min="0"
+                    step="0.01"
+                    value={override}
+                    onChange={e => setTickerPriceOverrides(prev => ({ ...prev, [t]: e.target.value }))}
+                  />
+                  {livePrice && !override && (
+                    <span className="text-xs text-green-600 shrink-0">✓ ${livePrice.toFixed(2)}</span>
+                  )}
+                </div>
+              )
+            })}
           </div>
-          <input
-            type="number"
-            className="input"
-            placeholder="150"
-            min="0"
-            step="0.01"
-            value={currentPrice}
-            onChange={e => setCurrentPrice(e.target.value)}
-          />
         </div>
       </div>
 
@@ -258,13 +268,13 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
           </div>
 
           {/* Live example */}
-          {parsedIncome > 0 && parsedPrice > 0 && !hasAnySale && (
+          {parsedIncome > 0 && grants.length > 0 && effectivePriceUSD(grants[0]?.ticker) > 0 && !hasAnySale && (
             <div className="bg-gray-100 rounded-lg p-3 text-xs text-gray-700">
               <p className="font-semibold mb-1">דוגמה: מכירת 100 מניות</p>
               {(() => {
                 const exampleGrant = grants[0]
                 if (!exampleGrant) return null
-                const proceeds = 100 * parsedPriceILS
+                const proceeds = 100 * effectivePriceUSD(exampleGrant.ticker) * parsedRate
                 const tax = calculateMarginalTax(parsedIncome, proceeds)
                 const bl = calculateMarginalBL(parsedIncome, proceeds)
                 return (
@@ -357,7 +367,7 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
               </div>
 
               {/* Tax breakdown for this grant */}
-              {bd && bd.sharesToSell > 0 && parsedPrice > 0 && (
+              {bd && bd.sharesToSell > 0 && effectivePriceUSD(grant.ticker) > 0 && (
                 <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-sm border border-gray-100">
                   <p className="font-semibold text-gray-700 text-xs uppercase tracking-wide">חישוב מס — הענקה זו</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1">
@@ -380,7 +390,7 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                             <span className="text-gray-600">
                               רווח הון ({fmtPct(CAPITAL_GAIN_RATE)}):
                               <span className="text-xs text-gray-400 block">
-                                {bd.sharesToSell} × (${parsedPrice.toFixed(2)} − ${grant.grantPrice.toFixed(2)}) × ₪{parsedRate.toFixed(3)}
+                                {bd.sharesToSell} × (${effectivePriceUSD(grant.ticker).toFixed(2)} − ${grant.grantPrice.toFixed(2)}) × ₪{parsedRate.toFixed(3)}
                               </span>
                             </span>
                             <span className="text-left">
