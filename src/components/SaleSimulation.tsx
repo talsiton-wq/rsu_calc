@@ -338,7 +338,11 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
               {/* Two-year status explanation */}
               <div className={`text-xs rounded-lg p-2.5 ${isTwoYears ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
                 {isTwoYears ? (
-                  <>✅ עברו שנתיים — עד ${grant.grantPrice.toFixed(2)}/מניה = הכנסה | מעל = רווח הון {fmtPct(CAPITAL_GAIN_RATE)}</>
+                  effectivePriceUSD(grant.ticker) < grant.grantPrice ? (
+                    <>✅ עברו שנתיים — מחיר מכירה (${effectivePriceUSD(grant.ticker).toFixed(2)}) נמוך ממחיר הענקה (${grant.grantPrice.toFixed(2)}) — כל התמורה = הכנסת עבודה</>
+                  ) : (
+                    <>✅ עברו שנתיים — עד ${grant.grantPrice.toFixed(2)}/מניה = הכנסה | מעל = רווח הון {fmtPct(CAPITAL_GAIN_RATE)}</>
+                  )
                 ) : (
                   <>⚠️ לא עברו שנתיים — כל התמורה תמוסה כהכנסה רגילה לפי מדרגות המס</>
                 )}
@@ -380,7 +384,7 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
 
                     {bd.isTwoYearsPassed ? (
                       <>
-                        <span className="text-gray-600">הכנסת עבודה ({bd.sharesToSell} × ${grant.grantPrice.toFixed(2)}):</span>
+                        <span className="text-gray-600">הכנסת עבודה ({bd.sharesToSell} × ${Math.min(effectivePriceUSD(grant.ticker), grant.grantPrice).toFixed(2)}):</span>
                         <span className="text-left">{fmtCurrency(bd.ordinaryIncome)}</span>
 
                         <span className="text-gray-600">מס הכנסה על הכנסה:</span>
