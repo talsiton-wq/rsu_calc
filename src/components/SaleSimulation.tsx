@@ -636,12 +636,12 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
             </div>
           </div>
 
-          {(summary.yisufhNote > 0 || summary.totalYisufhHoniTax > 0) && (
+          {(summary.totalYisufhTax > 0 || summary.totalYisufhHoniTax > 0) && (
             <div className="bg-yellow-50 border border-yellow-300 rounded-xl p-4 text-sm text-yellow-900 space-y-1">
               <p className="font-bold mb-1">ℹ️ מס ייסף (כלול בסיכום)</p>
-              {summary.yisufhNote > 0 && (
+              {summary.totalYisufhTax > 0 && (
                 <p>
-                  <strong>ייסף 3%:</strong> הכנסה כוללת ({fmtCurrency(summary.finalTaxableIncome)}) עולה מעל {fmtCurrency(YISUPH_THRESHOLD)} ב-{fmtCurrency(summary.yisufhNote)} = <strong>{fmtCurrency(summary.totalYisufhTax)}</strong>.
+                  <strong>ייסף 3%:</strong> הכנסה כוללת (עבודה + הון) חצתה סף = <strong>{fmtCurrency(summary.totalYisufhTax)}</strong> נוספים.
                 </p>
               )}
               {summary.totalYisufhHoniTax > 0 && (
