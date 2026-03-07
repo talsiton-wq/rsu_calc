@@ -179,11 +179,12 @@ export function calculateTaxSummary(
   grants: Grant[],
   saleInputs: SaleSimulationInput[],
   currentPrices: Record<string, number>,
-  annualIncome: number
+  annualIncome: number,
+  annualCapitalIncome = 0   // pre-existing capital income (e.g. dividends, other gains) before this sale
 ): TaxSummary {
   const breakdowns: TaxBreakdown[] = []
   let runningIncome = annualIncome
-  let runningCapitalGain = 0
+  let runningCapitalGain = annualCapitalIncome   // seed with pre-existing capital income
 
   for (const input of saleInputs) {
     if (input.sharesToSell <= 0) continue

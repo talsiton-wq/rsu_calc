@@ -59,6 +59,7 @@ function getBLDetails(baseIncome: number, additionalIncome: number) {
 
 export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRate = 3.7 }: Props) {
   const [annualIncome, setAnnualIncome] = useState('')
+  const [annualCapitalIncome, setAnnualCapitalIncome] = useState('')
   const [exchangeRate, setExchangeRate] = useState(String(initialUsdRate))
   const [saleInputs, setSaleInputs] = useState<Record<string, string>>({})
   // Per-ticker price overrides — user can override the live price per ticker
@@ -75,6 +76,7 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
   const uniqueTickers = [...new Set(grants.map(g => g.ticker).filter(Boolean))]
 
   const parsedIncome = parseFloat(annualIncome) || 0
+  const parsedCapitalIncome = parseFloat(annualCapitalIncome) || 0
   const parsedRate = parseFloat(exchangeRate) || 3.7
 
   // Effective price per ticker: user override → live price from sheet → 0
@@ -109,8 +111,8 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
 
   const summary = useMemo(() => {
     if (!isValid) return null
-    return calculateTaxSummary(grantsILS, inputs, grantCurrentPricesNIS, parsedIncome)
-  }, [grantsILS, inputs, grantCurrentPricesNIS, parsedIncome, isValid])
+    return calculateTaxSummary(grantsILS, inputs, grantCurrentPricesNIS, parsedIncome, parsedCapitalIncome)
+  }, [grantsILS, inputs, grantCurrentPricesNIS, parsedIncome, parsedCapitalIncome, isValid])
 
   // Current marginal bracket for display
   const currentBracket = TAX_BRACKETS.find(b => parsedIncome < b.max)
@@ -119,7 +121,7 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
   return (
     <div className="space-y-6">
       {/* Global Inputs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* USD Rate — auto from sheet, no fetch button */}
         <div>
           <label className="label">שער דולר (₪/$)</label>
@@ -141,9 +143,9 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
           )}
         </div>
 
-        {/* Annual income */}
+        {/* Annual work income */}
         <div>
-          <label className="label">הכנסה שנתית (₪)</label>
+          <label className="label">הכנסה שנתית מעבודה (₪)</label>
           <input
             type="number"
             className="input"
@@ -156,6 +158,24 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
             <p className="text-xs text-gray-500 mt-1">
               מ"ה שולי: <span className="font-semibold text-gray-700">{currentBracket ? fmtPct(currentBracket.rate) : '—'}</span>
               <span className="mr-2">ב"ל שולי: <span className="font-semibold text-gray-700">{currentBLBracket ? fmtPct(currentBLBracket.rate) : '—'}</span></span>
+            </p>
+          )}
+        </div>
+
+        {/* Annual capital income (pre-existing, before this RSU sale) */}
+        <div>
+          <label className="label">הכנסה שנתית הונית (₪)</label>
+          <input
+            type="number"
+            className="input"
+            placeholder="0"
+            min="0"
+            value={annualCapitalIncome}
+            onChange={e => setAnnualCapitalIncome(e.target.value)}
+          />
+          {parsedCapitalIncome > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              הון לפני מכירה: <span className="font-semibold text-gray-700">{fmtCurrency(parsedCapitalIncome)}</span>
             </p>
           )}
         </div>
