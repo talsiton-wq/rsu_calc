@@ -157,6 +157,7 @@ export function calculateGrantTax(
     saleProceeds,
     yearsFromGrant,
     isTwoYearsPassed,
+    baseIncome: annualIncome,
     ordinaryIncome,
     ordinaryTax,
     capitalGain,

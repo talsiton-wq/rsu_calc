@@ -36,6 +36,9 @@ export interface TaxBreakdown {
   yearsFromGrant: number
   isTwoYearsPassed: boolean
 
+  // Base income before this grant (for cumulative bracket display)
+  baseIncome: number
+
   // Ordinary income portion
   ordinaryIncome: number
   ordinaryTax: number
