@@ -89,7 +89,8 @@ export function calculateGrantTax(
   grant: Grant,
   sharesToSell: number,
   currentPrice: number,
-  annualIncome: number
+  annualIncome: number,
+  cumulativeCapitalGain = 0   // sum of capitalGain from all previously-processed grants (for yisuph stacking)
 ): TaxBreakdown {
   const today = new Date()
   const grantDate = new Date(grant.grantDate)
@@ -128,13 +129,24 @@ export function calculateGrantTax(
   const totalTax = ordinaryTax + capitalGainTax
   const netProfit = saleProceeds - totalTax - bituachLeumi
 
-  // Marginal yisuph (3% surtax) — only the portion of THIS grant's income that crosses the threshold
+  // Marginal yisuph (3%) — on TOTAL income (ordinary + capital gain) above threshold
+  // "annualIncome" here is running base (prev grants' ordinary income already stacked)
+  const totalBeforeThisGrant = annualIncome + cumulativeCapitalGain
+  const totalAfterThisGrant  = totalBeforeThisGrant + ordinaryIncome + capitalGain
   const yisufhSubjectAmount =
-    Math.max(0, annualIncome + ordinaryIncome - YISUPH_THRESHOLD) -
-    Math.max(0, annualIncome - YISUPH_THRESHOLD)
+    Math.max(0, totalAfterThisGrant  - YISUPH_THRESHOLD) -
+    Math.max(0, totalBeforeThisGrant - YISUPH_THRESHOLD)
   const yisufhTax = yisufhSubjectAmount * 0.03
 
-  const totalTaxWithYisuph = totalTax + yisufhTax
+  // Additional yisuph honi (2%) — on the portion of capital gain that itself exceeds the threshold
+  const capGainBefore = cumulativeCapitalGain
+  const capGainAfter  = cumulativeCapitalGain + capitalGain
+  const yisufhHoniSubjectAmount =
+    Math.max(0, capGainAfter  - YISUPH_THRESHOLD) -
+    Math.max(0, capGainBefore - YISUPH_THRESHOLD)
+  const yisufhHoniTax = yisufhHoniSubjectAmount * 0.02
+
+  const totalTaxWithYisuph = totalTax + yisufhTax + yisufhHoniTax
   const netProfitAfterYisuph = saleProceeds - totalTaxWithYisuph - bituachLeumi
 
   return {
@@ -154,6 +166,8 @@ export function calculateGrantTax(
     netProfit: netProfitAfterYisuph,
     yisufhSubjectAmount,
     yisufhTax,
+    yisufhHoniSubjectAmount,
+    yisufhHoniTax,
   }
 }
 
@@ -169,6 +183,7 @@ export function calculateTaxSummary(
 ): TaxSummary {
   const breakdowns: TaxBreakdown[] = []
   let runningIncome = annualIncome
+  let runningCapitalGain = 0
 
   for (const input of saleInputs) {
     if (input.sharesToSell <= 0) continue
@@ -176,11 +191,12 @@ export function calculateTaxSummary(
     if (!grant) continue
 
     const currentPrice = currentPrices[grant.id] ?? 0
-    const breakdown = calculateGrantTax(grant, input.sharesToSell, currentPrice, runningIncome)
+    const breakdown = calculateGrantTax(grant, input.sharesToSell, currentPrice, runningIncome, runningCapitalGain)
     breakdowns.push(breakdown)
 
-    // Stack ordinary income for next grant calculation (conservative approach)
+    // Stack income for next grant (conservative approach)
     runningIncome += breakdown.ordinaryIncome
+    runningCapitalGain += breakdown.capitalGain
   }
 
   const totalSaleProceeds = breakdowns.reduce((s, b) => s + b.saleProceeds, 0)
@@ -188,7 +204,8 @@ export function calculateTaxSummary(
   const totalCapitalGainTax = breakdowns.reduce((s, b) => s + b.capitalGainTax, 0)
   const totalBituachLeumi = breakdowns.reduce((s, b) => s + b.bituachLeumi, 0)
   const totalYisufhTax = breakdowns.reduce((s, b) => s + b.yisufhTax, 0)
-  const totalTax = totalOrdinaryTax + totalCapitalGainTax + totalYisufhTax
+  const totalYisufhHoniTax = breakdowns.reduce((s, b) => s + b.yisufhHoniTax, 0)
+  const totalTax = totalOrdinaryTax + totalCapitalGainTax + totalYisufhTax + totalYisufhHoniTax
   const totalNetProfit = totalSaleProceeds - totalTax - totalBituachLeumi
   const finalTaxableIncome = runningIncome
 
@@ -200,6 +217,7 @@ export function calculateTaxSummary(
     totalCapitalGainTax,
     totalBituachLeumi,
     totalYisufhTax,
+    totalYisufhHoniTax,
     totalTax,
     totalNetProfit,
     finalTaxableIncome,
