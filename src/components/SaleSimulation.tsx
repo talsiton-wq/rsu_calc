@@ -451,11 +451,25 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                         <span className="text-gray-600">
                           מס ייסף (3%):
                           <span className="text-xs text-gray-400 block">
-                            {fmtCurrency(bd.yisufhSubjectAmount)} מעל סף {fmtCurrency(YISUPH_THRESHOLD)}
+                            הכנסה כוללת {fmtCurrency(bd.yisufhSubjectAmount)} מעל סף {fmtCurrency(YISUPH_THRESHOLD)}
                           </span>
                         </span>
                         <span className="text-red-600 text-left">
                           {fmtCurrency(bd.yisufhTax)}<span className="text-xs text-red-300">{fmtUSD(bd.yisufhTax, parsedRate)}</span>
+                        </span>
+                      </>
+                    )}
+
+                    {bd.yisufhHoniTax > 0 && (
+                      <>
+                        <span className="text-gray-600">
+                          ייסף הוני (2%):
+                          <span className="text-xs text-gray-400 block">
+                            רווח הון {fmtCurrency(bd.yisufhHoniSubjectAmount)} מעל סף {fmtCurrency(YISUPH_THRESHOLD)}
+                          </span>
+                        </span>
+                        <span className="text-red-600 text-left">
+                          {fmtCurrency(bd.yisufhHoniTax)}<span className="text-xs text-red-300">{fmtUSD(bd.yisufhHoniTax, parsedRate)}</span>
                         </span>
                       </>
                     )}
@@ -546,9 +560,14 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                     </div>
                   </details>
 
-                  {bd.yisufhTax > 0 && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-800">
-                      ✓ <strong>מס ייסף (3%)</strong> כלול בחישוב: {fmtCurrency(bd.yisufhSubjectAmount)} × 3% = {fmtCurrency(bd.yisufhTax)}.
+                  {(bd.yisufhTax > 0 || bd.yisufhHoniTax > 0) && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-800 space-y-1">
+                      {bd.yisufhTax > 0 && (
+                        <div>✓ <strong>מס ייסף (3%)</strong> כלול: הכנסה כוללת (עבודה + הון) {fmtCurrency(bd.yisufhSubjectAmount)} מעל סף = {fmtCurrency(bd.yisufhTax)}.</div>
+                      )}
+                      {bd.yisufhHoniTax > 0 && (
+                        <div>✓ <strong>ייסף הוני (2%)</strong> כלול: רווח הון {fmtCurrency(bd.yisufhHoniSubjectAmount)} מעל סף = {fmtCurrency(bd.yisufhHoniTax)}.</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -597,15 +616,19 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
             </div>
           </div>
 
-          {summary.yisufhNote > 0 && (
-            <div className="bg-yellow-50 border border-yellow-300 rounded-xl p-4 text-sm text-yellow-900">
-              <p className="font-bold mb-1">ℹ️ מס ייסף — 3% נוסף (כלול בסיכום)</p>
-              <p>
-                הכנסתך הכוללת ({fmtCurrency(summary.finalTaxableIncome)}) עולה מעל {fmtCurrency(YISUPH_THRESHOLD)} ב-{fmtCurrency(summary.yisufhNote)}.
-              </p>
-              <p className="mt-1 font-semibold">
-                מס ייסף: {fmtCurrency(summary.totalYisufhTax)} — כלול בסה"כ הניכויים.
-              </p>
+          {(summary.yisufhNote > 0 || summary.totalYisufhHoniTax > 0) && (
+            <div className="bg-yellow-50 border border-yellow-300 rounded-xl p-4 text-sm text-yellow-900 space-y-1">
+              <p className="font-bold mb-1">ℹ️ מס ייסף (כלול בסיכום)</p>
+              {summary.yisufhNote > 0 && (
+                <p>
+                  <strong>ייסף 3%:</strong> הכנסה כוללת ({fmtCurrency(summary.finalTaxableIncome)}) עולה מעל {fmtCurrency(YISUPH_THRESHOLD)} ב-{fmtCurrency(summary.yisufhNote)} = <strong>{fmtCurrency(summary.totalYisufhTax)}</strong>.
+                </p>
+              )}
+              {summary.totalYisufhHoniTax > 0 && (
+                <p>
+                  <strong>ייסף הוני 2%:</strong> רווח הון חצה סף = <strong>{fmtCurrency(summary.totalYisufhHoniTax)}</strong> נוספים.
+                </p>
+              )}
             </div>
           )}
         </div>
