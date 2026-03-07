@@ -529,7 +529,7 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                             </tr>
                           </thead>
                           <tbody>
-                            {getBracketDetails(bd.isTwoYearsPassed ? parsedIncome : parsedIncome, bd.ordinaryIncome).map((row, i) => (
+                            {getBracketDetails(bd.baseIncome, bd.ordinaryIncome).map((row, i) => (
                               <tr key={i} className="border-b border-gray-100">
                                 <td className="py-1 text-right text-gray-500 pr-1">
                                   {fmtCurrency(row.min)}–{row.max === Infinity ? '∞' : fmtCurrency(row.max)}
@@ -561,7 +561,7 @@ export default function SaleSimulation({ grants, tickerPrices = {}, initialUsdRa
                               </tr>
                             </thead>
                             <tbody>
-                              {getBLDetails(parsedIncome, bd.ordinaryIncome).map((row, i) => (
+                              {getBLDetails(bd.baseIncome, bd.ordinaryIncome).map((row, i) => (
                                 <tr key={i} className="border-b border-gray-100">
                                   <td className="py-1 text-right text-gray-500 pr-1 text-xs">{row.label}</td>
                                   <td className="py-1 text-left text-gray-700">{fmtCurrency(row.inBracket)}</td>
