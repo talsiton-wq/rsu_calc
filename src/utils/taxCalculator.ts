@@ -128,9 +128,14 @@ export function calculateGrantTax(
   const totalTax = ordinaryTax + capitalGainTax
   const netProfit = saleProceeds - totalTax - bituachLeumi
 
-  // Calculate amount subject to yisuph surcharge
-  const totalIncomeAfterSale = annualIncome + ordinaryIncome
-  const yisufhSubjectAmount = Math.max(0, totalIncomeAfterSale - YISUPH_THRESHOLD)
+  // Marginal yisuph (3% surtax) — only the portion of THIS grant's income that crosses the threshold
+  const yisufhSubjectAmount =
+    Math.max(0, annualIncome + ordinaryIncome - YISUPH_THRESHOLD) -
+    Math.max(0, annualIncome - YISUPH_THRESHOLD)
+  const yisufhTax = yisufhSubjectAmount * 0.03
+
+  const totalTaxWithYisuph = totalTax + yisufhTax
+  const netProfitAfterYisuph = saleProceeds - totalTaxWithYisuph - bituachLeumi
 
   return {
     grantId: grant.id,
@@ -144,10 +149,11 @@ export function calculateGrantTax(
     ordinaryTax,
     capitalGain,
     capitalGainTax,
-    totalTax,
+    totalTax: totalTaxWithYisuph,
     bituachLeumi,
-    netProfit,
+    netProfit: netProfitAfterYisuph,
     yisufhSubjectAmount,
+    yisufhTax,
   }
 }
 
@@ -181,7 +187,8 @@ export function calculateTaxSummary(
   const totalOrdinaryTax = breakdowns.reduce((s, b) => s + b.ordinaryTax, 0)
   const totalCapitalGainTax = breakdowns.reduce((s, b) => s + b.capitalGainTax, 0)
   const totalBituachLeumi = breakdowns.reduce((s, b) => s + b.bituachLeumi, 0)
-  const totalTax = totalOrdinaryTax + totalCapitalGainTax
+  const totalYisufhTax = breakdowns.reduce((s, b) => s + b.yisufhTax, 0)
+  const totalTax = totalOrdinaryTax + totalCapitalGainTax + totalYisufhTax
   const totalNetProfit = totalSaleProceeds - totalTax - totalBituachLeumi
   const finalTaxableIncome = runningIncome
 
@@ -192,6 +199,7 @@ export function calculateTaxSummary(
     totalOrdinaryTax,
     totalCapitalGainTax,
     totalBituachLeumi,
+    totalYisufhTax,
     totalTax,
     totalNetProfit,
     finalTaxableIncome,
