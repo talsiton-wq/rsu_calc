@@ -20,6 +20,11 @@ interface Props {
 
 const TICKER_PALETTE = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444']
 
+function fmtAxisDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -137,7 +142,7 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
       existing.perTicker[e.ticker] = (existing.perTicker[e.ticker] || 0) + e.sharesVested
     } else {
       dateMap.set(e.date, {
-        label: e.periodLabel,
+        label: fmtAxisDate(e.date),
         cumulativeVested: e.cumulativeVested,
         cumulativeUnvested: e.cumulativeUnvested,
         isPast: e.isPast,
@@ -303,7 +308,7 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
             <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Area
-              type="monotone"
+              type="stepAfter"
               dataKey="מניות שהבשילו (מצטבר)"
               fill="#86efac"
               stroke="#22c55e"
@@ -311,7 +316,7 @@ export default function VestingChart({ grants, tickerPrices = {} }: Props) {
               strokeWidth={2}
             />
             <Area
-              type="monotone"
+              type="stepAfter"
               dataKey="מניות שלא הבשילו"
               fill="#fed7aa"
               stroke="#f97316"
